@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:fitsSystemWindows="true">
+
+    <!-- Progress Bar -->
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progressBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Chat RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewChat"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:padding="8dp"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@id/progressBar"
+        app:layout_constraintBottom_toTopOf="@id/layoutInput" />
+
+    <!-- Input Layout -->
+    <LinearLayout
+        android:id="@+id/layoutInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:background="@android:color/white"
+        android:elevation="8dp"
+        android:gravity="bottom"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnVoiceInput"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginBottom="4dp"
+            app:icon="@drawable/ic_mic"
+            android:contentDescription="Voice Input" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="8dp"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            app:boxCornerRadiusTopStart="24dp"
+            app:boxCornerRadiusTopEnd="24dp"
+            app:boxCornerRadiusBottomStart="24dp"
+            app:boxCornerRadiusBottomEnd="24dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etMessage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Ask about nutrition..."
+                android:maxLines="4"
+                android:inputType="textMultiLine|textCapSentences"
+                android:imeOptions="actionSend" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnSend"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_send"
+            android:contentDescription="Send message"
+            app:fabSize="mini" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
