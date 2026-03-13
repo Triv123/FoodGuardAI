@@ -1,7 +1,9 @@
 package com.example.foodguardai.database;
 
 import android.util.Log;
+
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
@@ -17,8 +19,8 @@ public class FirebaseManager {
     private static final String TAG = "FirebaseManager";
 
     private static FirebaseManager instance;
-    private FirebaseAuth auth;
-    private FirebaseFirestore db;
+    private final FirebaseAuth auth;
+    private final FirebaseFirestore db;
 
     private FirebaseManager() {
         auth = FirebaseAuth.getInstance();
@@ -47,22 +49,30 @@ public class FirebaseManager {
                         // Create user document
                         User user = new User(firebaseUser.getUid(), email, name);
                         createUserDocument(user, callback);
+                    } else {
+                        callback.onError("User creation failed: FirebaseUser is null");
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Sign up failed", e);
-                    callback.onError(e.getMessage());
+                    String userMessage = mapAuthError(e);
+                    Log.e(TAG, "Sign up failed: " + e.getMessage(), e);
+                    callback.onError(userMessage);
                 });
     }
 
     public void signIn(String email, String password, AuthCallback callback) {
         auth.signInWithEmailAndPassword(email, password)
                 .addOnSuccessListener(authResult -> {
-                    callback.onSuccess(authResult.getUser());
+                    if (authResult.getUser() != null) {
+                        callback.onSuccess(authResult.getUser());
+                    } else {
+                        callback.onError("Sign in failed: FirebaseUser is null");
+                    }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Sign in failed", e);
-                    callback.onError(e.getMessage());
+                    String userMessage = mapAuthError(e);
+                    Log.e(TAG, "Sign in failed: " + e.getMessage(), e);
+                    callback.onError(userMessage);
                 });
     }
 
@@ -78,17 +88,39 @@ public class FirebaseManager {
         return auth.getCurrentUser() != null;
     }
 
+    private String mapAuthError(Exception e) {
+        if (e instanceof FirebaseAuthException) {
+            String errorCode = ((FirebaseAuthException) e).getErrorCode();
+            Log.w(TAG, "FirebaseAuth error code: " + errorCode);
+            switch (errorCode) {
+                case "ERROR_INVALID_EMAIL":
+                    return "The email address is badly formatted.";
+                case "ERROR_EMAIL_ALREADY_IN_USE":
+                    return "This email address is already in use.";
+                case "ERROR_WEAK_PASSWORD":
+                    return "Password is too weak. Please choose a stronger password.";
+                case "ERROR_OPERATION_NOT_ALLOWED":
+                    return "Email/password sign-in is disabled in Firebase Console.";
+                case "ERROR_NETWORK_REQUEST_FAILED":
+                    return "Network error. Please check your internet connection and try again.";
+                default:
+                    return "Authentication failed. (" + errorCode + ")";
+            }
+        }
+        return "Authentication failed. " + (e.getMessage() != null ? e.getMessage() : "Unknown error");
+    }
+
     private void createUserDocument(User user, AuthCallback callback) {
         db.collection("users")
                 .document(user.getUid())
                 .set(user.toMap())
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "User document created");
+                    Log.d(TAG, "User document created successfully");
                     callback.onSuccess(auth.getCurrentUser());
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to create user document", e);
-                    callback.onError(e.getMessage());
+                    Log.e(TAG, "Failed to create user document: " + e.getMessage(), e);
+                    callback.onError("Account created but profile setup failed: " + e.getMessage());
                 });
     }
 
@@ -105,10 +137,14 @@ public class FirebaseManager {
     }
 
     public void addDietEntry(DietEntry entry, DietCallback callback) {
-        String userId = getCurrentUser().getUid();
+        FirebaseUser user = getCurrentUser();
+        if (user == null) {
+            callback.onError("User not authenticated");
+            return;
+        }
 
         db.collection("users")
-                .document(userId)
+                .document(user.getUid())
                 .collection("dietEntries")
                 .add(entry.toMap())
                 .addOnSuccessListener(documentReference -> {
@@ -116,18 +152,23 @@ public class FirebaseManager {
                     callback.onSuccess();
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to add diet entry", e);
+                    Log.e(TAG, "Failed to add diet entry: " + e.getMessage(), e);
                     callback.onError(e.getMessage());
                 });
     }
 
     public void getTodaysDietEntries(DietEntriesCallback callback) {
-        String userId = getCurrentUser().getUid();
+        FirebaseUser user = getCurrentUser();
+        if (user == null) {
+            callback.onError("User not authenticated");
+            return;
+        }
+
         String today = new java.text.SimpleDateFormat("yyyy-MM-dd",
                 java.util.Locale.US).format(new java.util.Date());
 
         db.collection("users")
-                .document(userId)
+                .document(user.getUid())
                 .collection("dietEntries")
                 .whereEqualTo("date", today)
                 .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -142,16 +183,20 @@ public class FirebaseManager {
                     callback.onSuccess(entries);
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to get diet entries", e);
+                    Log.e(TAG, "Failed to get diet entries: " + e.getMessage(), e);
                     callback.onError(e.getMessage());
                 });
     }
 
     public void getDietEntriesByDate(String date, DietEntriesCallback callback) {
-        String userId = getCurrentUser().getUid();
+        FirebaseUser user = getCurrentUser();
+        if (user == null) {
+            callback.onError("User not authenticated");
+            return;
+        }
 
         db.collection("users")
-                .document(userId)
+                .document(user.getUid())
                 .collection("dietEntries")
                 .whereEqualTo("date", date)
                 .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -171,19 +216,23 @@ public class FirebaseManager {
     // ===== SCAN HISTORY =====
 
     public void addScanHistory(ScanHistory scan, DietCallback callback) {
-        String userId = getCurrentUser().getUid();
+        FirebaseUser user = getCurrentUser();
+        if (user == null) {
+            if (callback != null) callback.onError("User not authenticated");
+            return;
+        }
 
         db.collection("users")
-                .document(userId)
+                .document(user.getUid())
                 .collection("scanHistory")
                 .add(scan.toMap())
                 .addOnSuccessListener(documentReference -> {
-                    Log.d(TAG, "Scan history added");
-                    callback.onSuccess();
+                    Log.d(TAG, "Scan history added successfully");
+                    if (callback != null) callback.onSuccess();
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to add scan history", e);
-                    callback.onError(e.getMessage());
+                    Log.e(TAG, "Failed to add scan history: " + e.getMessage(), e);
+                    if (callback != null) callback.onError(e.getMessage());
                 });
     }
 
@@ -193,10 +242,14 @@ public class FirebaseManager {
     }
 
     public void getScanHistory(int limit, ScanHistoryCallback callback) {
-        String userId = getCurrentUser().getUid();
+        FirebaseUser user = getCurrentUser();
+        if (user == null) {
+            callback.onError("User not authenticated");
+            return;
+        }
 
         db.collection("users")
-                .document(userId)
+                .document(user.getUid())
                 .collection("scanHistory")
                 .orderBy("timestamp", Query.Direction.DESCENDING)
                 .limit(limit)

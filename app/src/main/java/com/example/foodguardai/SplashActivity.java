@@ -8,6 +8,7 @@ import android.os.Looper;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.foodguardai.database.FirebaseManager;
+import com.google.firebase.FirebaseApp;
 
 public class SplashActivity extends AppCompatActivity {
 
@@ -15,6 +16,9 @@ public class SplashActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splash);
+
+        // Ensure Firebase is initialized before any Firebase operations
+        FirebaseApp.initializeApp(this);
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (FirebaseManager.getInstance().isUserLoggedIn()) {
