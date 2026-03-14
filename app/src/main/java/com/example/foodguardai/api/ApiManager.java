@@ -2,9 +2,10 @@ package com.example.foodguardai.api;
 
 import android.util.Log;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -12,21 +13,30 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
-import java.util.concurrent.TimeUnit;
-
 public class ApiManager {
     private static final String TAG = "ApiManager";
 
-    // ⚠️ PASTE YOUR GEMINI API KEY HERE
-    private static final String GEMINI_API_KEY = "AIzaSyC9h29X4SJVcFaFAD0MJONO-1Z2BgqB0qs";
+    // ── PASTE YOUR OPENROUTER KEY HERE (sk-or-v1-...) ────────────────────
+    private static final String OPENROUTER_API_KEY = "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";
+    // ─────────────────────────────────────────────────────────────────────
 
-    // Fixed URL - using v1 and gemini-pro (most compatible free model)
-    private static final String GEMINI_URL =
-            "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=";
+    private static final String URL = "https://openrouter.ai/api/v1/chat/completions";
 
-    private static final OkHttpClient httpClient = new OkHttpClient.Builder()
+    // Updated March 2026 — working free models on OpenRouter
+    // "openrouter/free" is the magic model: auto-picks whatever free model
+    // is available right now, so it NEVER fails due to model name changes
+    private static final String[] MODELS = {
+            "openrouter/free",                              // Auto-router — always works
+            "meta-llama/llama-4-scout:free",               // Meta Llama 4
+            "meta-llama/llama-4-maverick:free",            // Meta Llama 4 Maverick
+            "mistralai/mistral-small-3.1-24b-instruct:free", // Mistral Small 3.1
+            "deepseek/deepseek-chat-v3-0324:free",         // DeepSeek V3
+            "nvidia/llama-3.1-nemotron-nano-8b-v1:free",   // NVIDIA Nemotron
+    };
+
+    private static final OkHttpClient CLIENT = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
             .build();
 
     public interface ApiCallback {
@@ -34,94 +44,119 @@ public class ApiManager {
         void onError(String error);
     }
 
-    public static void sendChatMessage(String message, String productContext, ApiCallback callback) {
-        Log.d(TAG, "sendChatMessage called");
+    // ── Entry point ───────────────────────────────────────────────────────
 
-        if (GEMINI_API_KEY.equals("PASTE_YOUR_GEMINI_KEY_HERE") || GEMINI_API_KEY.isEmpty()) {
-            callback.onSuccess("⚠️ API key not set. Get a free key at aistudio.google.com and paste it in ApiManager.java");
+    public static void sendChatMessage(String message, String productContext,
+                                       ApiCallback callback) {
+        if (OPENROUTER_API_KEY.startsWith("PASTE_") || OPENROUTER_API_KEY.trim().isEmpty()) {
+            callback.onError(
+                    "API key not set.\n\n" +
+                            "Go to openrouter.ai/keys → Create Key → paste it in ApiManager.java"
+            );
+            return;
+        }
+        new Thread(() -> tryModels(message, productContext, callback, 0)).start();
+    }
+
+    // ── Try each model in order ───────────────────────────────────────────
+
+    private static void tryModels(String message, String productContext,
+                                  ApiCallback callback, int index) {
+        if (index >= MODELS.length) {
+            callback.onError(
+                    "Could not get a response right now.\n" +
+                            "Please try again in a few seconds."
+            );
             return;
         }
 
-        sendToGemini(message, productContext, callback, 0);
-    }
+        String model = MODELS[index];
+        Log.d(TAG, "Trying model [" + index + "]: " + model);
 
-    private static void sendToGemini(String message, String productContext,
-                                     ApiCallback callback, int retryCount) {
-        new Thread(() -> {
-            try {
-                if (retryCount > 0) {
-                    Thread.sleep(3000L * retryCount);
-                }
+        try {
+            // Build messages
+            JSONObject systemMsg = new JSONObject();
+            systemMsg.put("role", "system");
+            systemMsg.put("content",
+                    "You are a friendly food safety and nutrition expert for Indian consumers. " +
+                            "Keep answers to 2-4 sentences. Be clear, practical, and helpful.");
 
-                String prompt = "You are a nutrition expert in a food safety app. " +
-                        "Product: " + productContext + "\n" +
-                        "User question: " + message + "\n" +
-                        "Give a helpful answer in 2-3 sentences.";
+            JSONObject userMsg = new JSONObject();
+            userMsg.put("role", "user");
+            userMsg.put("content", "Product: " + productContext + "\nQuestion: " + message);
 
-                // Build Gemini request
-                JsonObject textPart = new JsonObject();
-                textPart.addProperty("text", prompt);
+            JSONArray messages = new JSONArray();
+            messages.put(systemMsg);
+            messages.put(userMsg);
 
-                JsonArray parts = new JsonArray();
-                parts.add(textPart);
+            // Build request body
+            JSONObject body = new JSONObject();
+            body.put("model", model);
+            body.put("messages", messages);
+            body.put("max_tokens", 300);
+            body.put("temperature", 0.7);
+            body.put("stream", false);  // ← this was missing
 
-                JsonObject content = new JsonObject();
-                content.add("parts", parts);
+            Request request = new Request.Builder()
+                    .url(URL)
+                    .post(RequestBody.create(
+                            body.toString(),
+                            MediaType.parse("application/json; charset=utf-8")))
+                    .addHeader("Authorization", "Bearer " + OPENROUTER_API_KEY)
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("HTTP-Referer", "https://foodguardai.app")
+                    .addHeader("X-Title", "FoodGuardAI")
+                    .build();
 
-                JsonArray contents = new JsonArray();
-                contents.add(content);
-
-                JsonObject body = new JsonObject();
-                body.add("contents", contents);
-
-                String bodyStr = body.toString();
-                Log.d(TAG, "Sending to Gemini: " + bodyStr);
-
-                Request request = new Request.Builder()
-                        .url(GEMINI_URL + GEMINI_API_KEY)
-                        .post(RequestBody.create(bodyStr,
-                                MediaType.parse("application/json")))
-                        .addHeader("Content-Type", "application/json")
-                        .build();
-
-                Response response = httpClient.newCall(request).execute();
-                String responseStr = response.body() != null ? response.body().string() : "";
+            try (Response response = CLIENT.newCall(request).execute()) {
                 int code = response.code();
+                String bodyStr = response.body() != null ? response.body().string() : "(empty)";
 
-                Log.d(TAG, "Response code: " + code);
-                Log.d(TAG, "Response body: " + responseStr);
+                Log.d(TAG, "Model=" + model + " HTTP=" + code);
+                Log.d(TAG, "Body=" + bodyStr);
 
-                if (code == 429) {
-                    if (retryCount < 3) {
-                        Log.w(TAG, "Rate limited, retrying...");
-                        sendToGemini(message, productContext, callback, retryCount + 1);
-                    } else {
-                        callback.onSuccess("The AI is busy right now. Please wait a moment and try again.");
-                    }
-                    return;
-                }
+                if (code == 200) {
+                    // Parse success
+                    JSONObject json = new JSONObject(bodyStr);
+                    String reply = json.getJSONArray("choices")
+                            .getJSONObject(0)
+                            .getJSONObject("message")
+                            .getString("content")
+                            .trim();
+                    Log.d(TAG, "✅ SUCCESS with: " + model);
+                    callback.onSuccess(reply);
 
-                if (response.isSuccessful()) {
-                    JsonObject json = JsonParser.parseString(responseStr).getAsJsonObject();
-                    String text = json
-                            .getAsJsonArray("candidates")
-                            .get(0).getAsJsonObject()
-                            .getAsJsonObject("content")
-                            .getAsJsonArray("parts")
-                            .get(0).getAsJsonObject()
-                            .get("text").getAsString();
+                } else if (code == 401) {
+                    // Wrong key — stop immediately, no point trying other models
+                    Log.e(TAG, "❌ 401 Unauthorized — key is wrong");
+                    callback.onError(
+                            "API key is invalid (401).\n\n" +
+                                    "Fix:\n" +
+                                    "1. Go to openrouter.ai/keys\n" +
+                                    "2. Delete old key → Create new key\n" +
+                                    "3. Copy the FULL key\n" +
+                                    "4. Paste in ApiManager.java on ONE line, no spaces"
+                    );
 
-                    Log.d(TAG, "Gemini replied: " + text);
-                    callback.onSuccess(text.trim());
+                } else if (code == 429) {
+                    // Rate limited — try next model
+                    Log.w(TAG, "⚠️ 429 rate limit on " + model + " — trying next");
+                    tryModels(message, productContext, callback, index + 1);
+
+                } else if (code == 404) {
+                    // Model not available — try next
+                    Log.w(TAG, "⚠️ 404 model not found: " + model + " — trying next");
+                    tryModels(message, productContext, callback, index + 1);
+
                 } else {
-                    Log.e(TAG, "Error " + code + ": " + responseStr);
-                    callback.onError("Error " + code + ": " + responseStr);
+                    Log.w(TAG, "⚠️ HTTP " + code + " on " + model + " — trying next");
+                    tryModels(message, productContext, callback, index + 1);
                 }
-
-            } catch (Exception e) {
-                Log.e(TAG, "Exception: " + e.getMessage(), e);
-                callback.onError("Network error: " + e.getMessage());
             }
-        }).start();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Exception on " + model + ": " + e.getMessage(), e);
+            tryModels(message, productContext, callback, index + 1);
+        }
     }
 }
