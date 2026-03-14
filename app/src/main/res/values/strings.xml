@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Food Label Scanner</string>
+    <string name="app_name">Food Guard AI</string>
     <string name="app_subtitle">Know what you eat. Stay healthy.</string>
 
     <!-- Main Activity -->
@@ -40,4 +40,12 @@
     <string name="info_icon">Info Icon</string>
     <string name="navigate">Navigate</string>
     <string name="error_icon">Error Icon</string>
+
+    <!-- Scan History Item -->
+    <string name="placeholder_product_name">Product Name</string>
+    <string name="placeholder_brand">Brand</string>
+    <string name="placeholder_date">Jan 01, 2026 9:00 AM</string>
+    <string name="scan_type_barcode">📊 Barcode</string>
+    <string name="placeholder_rating">8/10</string>
+    <string name="label_safety">Safety</string>
 </resources>

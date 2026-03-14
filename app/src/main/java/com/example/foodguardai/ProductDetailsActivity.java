@@ -39,7 +39,6 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private static final String TAG = "ProductDetailsActivity";
 
-    // Views - using safe findViewById
     private CircularProgressIndicator progressBar;
     private NestedScrollView layoutContent;
     private LinearLayout layoutError;
@@ -55,7 +54,6 @@ public class ProductDetailsActivity extends AppCompatActivity {
     private TextView tvSafetyDescription;
     private View safetyRatingBar;
 
-    // Nutrition Views
     private TextView tvCalories;
     private TextView tvProtein;
     private TextView tvProteinLevel;
@@ -74,6 +72,7 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private String barcode;
     private Product currentProduct;
+    private boolean historyAlreadySaved = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,11 +82,10 @@ public class ProductDetailsActivity extends AppCompatActivity {
             setContentView(R.layout.activity_product_details);
 
             barcode = getIntent().getStringExtra("BARCODE");
-            Log.d(TAG, "=== ProductDetailsActivity Started ===");
-            Log.d(TAG, "Barcode: " + barcode);
+            Log.d(TAG, "Barcode received: " + barcode);
             firebaseManager = FirebaseManager.getInstance();
+
             if (!initViews()) {
-                Log.e(TAG, "Failed to initialize views");
                 Toast.makeText(this, "Error loading screen", Toast.LENGTH_LONG).show();
                 finish();
                 return;
@@ -110,32 +108,27 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private boolean initViews() {
         try {
-            Log.d(TAG, "Initializing views...");
-
-            // Core views
             progressBar = findViewById(R.id.progressBar);
             layoutContent = findViewById(R.id.layoutContent);
             layoutError = findViewById(R.id.layoutError);
             btnAddToDiet = findViewById(R.id.btnAddToDiet);
+
             if (progressBar == null || layoutContent == null || layoutError == null) {
                 Log.e(TAG, "Core views are null!");
                 return false;
             }
 
-            // Product info views
             imgProduct = findViewById(R.id.imgProduct);
             tvProductName = findViewById(R.id.tvProductName);
             tvBrand = findViewById(R.id.tvBrand);
             tvCategory = findViewById(R.id.tvCategory);
             chipBannedStatus = findViewById(R.id.chipBannedStatus);
 
-            // Safety rating views
             cardSafetyRating = findViewById(R.id.cardSafetyRating);
             tvSafetyRating = findViewById(R.id.tvSafetyRating);
             tvSafetyDescription = findViewById(R.id.tvSafetyDescription);
             safetyRatingBar = findViewById(R.id.safetyRatingBar);
 
-            // Nutrition views
             tvCalories = findViewById(R.id.tvCalories);
             tvProtein = findViewById(R.id.tvProtein);
             tvProteinLevel = findViewById(R.id.tvProteinLevel);
@@ -149,11 +142,9 @@ public class ProductDetailsActivity extends AppCompatActivity {
             tvSodium = findViewById(R.id.tvSodium);
             tvSodiumLevel = findViewById(R.id.tvSodiumLevel);
 
-            // Buttons
             btnAskAI = findViewById(R.id.btnAskAI);
             btnRetry = findViewById(R.id.btnRetry);
 
-            Log.d(TAG, "All views initialized successfully");
             return true;
 
         } catch (Exception e) {
@@ -175,26 +166,34 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
         if (btnRetry != null) {
             btnRetry.setOnClickListener(v -> {
-                if (barcode != null) {
-                    fetchProductData(barcode);
-                }
+                if (barcode != null) fetchProductData(barcode);
             });
         }
-        btnAddToDiet.setOnClickListener(v -> {
-            if (currentProduct != null) {
-                addToDiet();
-            }
-        });
+
+        if (btnAddToDiet != null) {
+            btnAddToDiet.setOnClickListener(v -> {
+                if (currentProduct != null) addToDiet();
+            });
+        }
     }
+
     private void addToDiet() {
         if (!firebaseManager.isUserLoggedIn()) {
             Toast.makeText(this, "Please login to track your diet", Toast.LENGTH_LONG).show();
-            // Optionally redirect to login
+            startActivity(new Intent(this, LoginActivity.class));
             return;
         }
 
-        btnAddToDiet.setEnabled(false);
-        btnAddToDiet.setText("Adding...");
+        if (currentProduct.getNutritionalInfo() == null) {
+            Toast.makeText(this, "No nutritional data available for this product",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (btnAddToDiet != null) {
+            btnAddToDiet.setEnabled(false);
+            btnAddToDiet.setText("Adding...");
+        }
 
         String userId = firebaseManager.getCurrentUser().getUid();
 
@@ -209,24 +208,25 @@ public class ProductDetailsActivity extends AppCompatActivity {
             @Override
             public void onSuccess() {
                 runOnUiThread(() -> {
-                    btnAddToDiet.setEnabled(true);
-                    btnAddToDiet.setText("✓ Added to Diet");
-                    btnAddToDiet.setBackgroundColor(ContextCompat.getColor(ProductDetailsActivity.this, android.R.color.holo_green_dark));
-
+                    if (btnAddToDiet != null) {
+                        btnAddToDiet.setEnabled(true);
+                        btnAddToDiet.setText("✓ Added to Diet");
+                        btnAddToDiet.setBackgroundColor(
+                                ContextCompat.getColor(ProductDetailsActivity.this,
+                                        android.R.color.holo_green_dark));
+                    }
                     Toast.makeText(ProductDetailsActivity.this,
                             "Added to your diet tracker!", Toast.LENGTH_SHORT).show();
-
-                    // Also add to scan history
-                    addToScanHistory();
                 });
             }
 
             @Override
             public void onError(String error) {
                 runOnUiThread(() -> {
-                    btnAddToDiet.setEnabled(true);
-                    btnAddToDiet.setText("Add to My Diet");
-
+                    if (btnAddToDiet != null) {
+                        btnAddToDiet.setEnabled(true);
+                        btnAddToDiet.setText("Add to My Diet");
+                    }
                     Toast.makeText(ProductDetailsActivity.this,
                             "Failed to add: " + error, Toast.LENGTH_LONG).show();
                 });
@@ -234,11 +234,13 @@ public class ProductDetailsActivity extends AppCompatActivity {
         });
     }
 
-    private void addToScanHistory() {
-        if (!firebaseManager.isUserLoggedIn()) return;
+    private void saveToScanHistory() {
+        if (!firebaseManager.isUserLoggedIn() || historyAlreadySaved) return;
+        if (currentProduct == null) return;
+
+        historyAlreadySaved = true;
 
         String userId = firebaseManager.getCurrentUser().getUid();
-
         ScanHistory scan = new ScanHistory(
                 userId,
                 currentProduct.getBarcode(),
@@ -251,21 +253,19 @@ public class ProductDetailsActivity extends AppCompatActivity {
         firebaseManager.addScanHistory(scan, new FirebaseManager.DietCallback() {
             @Override
             public void onSuccess() {
-                Log.d(TAG, "Added to scan history");
+                Log.d(TAG, "Scan history saved automatically");
             }
 
             @Override
             public void onError(String error) {
-                Log.e(TAG, "Failed to add scan history: " + error);
+                Log.e(TAG, "Failed to save scan history: " + error);
+                historyAlreadySaved = false;
             }
         });
     }
 
-
     private void fetchProductData(String barcode) {
-        Log.d(TAG, "=== Fetching Product Data ===");
-        Log.d(TAG, "Barcode: " + barcode);
-
+        Log.d(TAG, "Fetching product: " + barcode);
         showLoading();
 
         try {
@@ -274,26 +274,24 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
             call.enqueue(new Callback<ProductResponse>() {
                 @Override
-                public void onResponse(Call<ProductResponse> call, Response<ProductResponse> response) {
-                    Log.d(TAG, "=== API Response Received ===");
-                    Log.d(TAG, "Success: " + response.isSuccessful());
-                    Log.d(TAG, "Code: " + response.code());
-
+                public void onResponse(Call<ProductResponse> call,
+                                       Response<ProductResponse> response) {
                     try {
                         if (response.isSuccessful() && response.body() != null) {
                             ProductResponse productResponse = response.body();
-                            Log.d(TAG, "Status: " + productResponse.getStatus());
 
-                            if (productResponse.getStatus() == 1 && productResponse.getProduct() != null) {
-                                Log.d(TAG, "Product found! Processing...");
+                            if (productResponse.getStatus() == 1
+                                    && productResponse.getProduct() != null) {
                                 processProductData(productResponse.getProduct());
                             } else {
-                                Log.w(TAG, "Product not found in database");
-                                showError("Product not found!\n\nTry these barcodes:\n• 3017620422003 (Nutella)\n• 5449000000996 (Coca-Cola)\n• 8076809513456 (Pasta)");
+                                showError("Product not found in database.\n\n" +
+                                        "Try these test barcodes:\n" +
+                                        "• 3017620422003 (Nutella)\n" +
+                                        "• 5449000000996 (Coca-Cola)\n" +
+                                        "• 8076809513456 (Pasta)");
                             }
                         } else {
-                            Log.e(TAG, "Response error: " + response.code());
-                            showError("API Error: " + response.code() + "\n" + response.message());
+                            showError("API Error: " + response.code());
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "Error processing response", e);
@@ -303,8 +301,8 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
                 @Override
                 public void onFailure(Call<ProductResponse> call, Throwable t) {
-                    Log.e(TAG, "=== API Call Failed ===", t);
-                    showError("Network Error!\n\n" + t.getMessage() + "\n\nCheck internet connection.");
+                    Log.e(TAG, "API call failed", t);
+                    showError("Network error. Please check your connection.\n\n" + t.getMessage());
                 }
             });
 
@@ -316,21 +314,16 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private void processProductData(ProductResponse.ProductData productData) {
         try {
-            Log.d(TAG, "=== Processing Product Data ===");
-
             currentProduct = new Product();
             currentProduct.setBarcode(barcode);
 
             String productName = productData.getProductName();
-            Log.d(TAG, "Product Name: " + productName);
             currentProduct.setProductName(productName != null ? productName : "Unknown Product");
             currentProduct.setBrand(productData.getBrands());
             currentProduct.setCategory(productData.getCategories());
             currentProduct.setImageUrl(productData.getImageUrl());
 
-            // Process nutritional information
             if (productData.getNutriments() != null) {
-                Log.d(TAG, "Processing nutrition data...");
                 NutritionalInfo nutritionalInfo = new NutritionalInfo();
                 nutritionalInfo.setServingSize(100);
                 nutritionalInfo.setServingUnit("g");
@@ -347,20 +340,18 @@ public class ProductDetailsActivity extends AppCompatActivity {
                 currentProduct.setNutritionalInfo(nutritionalInfo);
             }
 
-            // Check ban status
-            BannedProductChecker.BanStatus banStatus = BannedProductChecker.checkIfBanned(currentProduct);
+            BannedProductChecker.BanStatus banStatus =
+                    BannedProductChecker.checkIfBanned(currentProduct);
             currentProduct.setBanned(banStatus.isBanned());
             currentProduct.setBanReason(banStatus.getReason());
 
-            // Calculate safety rating
             int safetyRating = SafetyRatingCalculator.calculateSafetyRating(currentProduct);
             currentProduct.setSafetyRating(safetyRating);
 
-            Log.d(TAG, "Safety Rating: " + safetyRating);
-            Log.d(TAG, "=== Displaying Product ===");
-
-            // Display on UI thread
-            runOnUiThread(() -> displayProduct());
+            runOnUiThread(() -> {
+                displayProduct();
+                saveToScanHistory();
+            });
 
         } catch (Exception e) {
             Log.e(TAG, "Error processing product data", e);
@@ -370,13 +361,11 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private void displayProduct() {
         try {
-            Log.d(TAG, "Displaying product on UI");
-
             hideLoading();
             layoutContent.setVisibility(View.VISIBLE);
             layoutError.setVisibility(View.GONE);
+            if (btnAddToDiet != null) btnAddToDiet.setVisibility(View.VISIBLE);
 
-            // Product Image
             if (imgProduct != null && currentProduct.getImageUrl() != null) {
                 Glide.with(this)
                         .load(currentProduct.getImageUrl())
@@ -385,12 +374,13 @@ public class ProductDetailsActivity extends AppCompatActivity {
                         .into(imgProduct);
             }
 
-            // Product Info
             if (tvProductName != null) tvProductName.setText(currentProduct.getProductName());
-            if (tvBrand != null) tvBrand.setText(currentProduct.getBrand() != null ? currentProduct.getBrand() : "Unknown Brand");
-            if (tvCategory != null) tvCategory.setText(currentProduct.getCategory() != null ? currentProduct.getCategory() : "Unknown Category");
+            if (tvBrand != null) tvBrand.setText(
+                    currentProduct.getBrand() != null ? currentProduct.getBrand() : "Unknown Brand");
+            if (tvCategory != null) tvCategory.setText(
+                    currentProduct.getCategory() != null
+                            ? currentProduct.getCategory() : "Unknown Category");
 
-            // Banned Status
             if (chipBannedStatus != null) {
                 if (currentProduct.isBanned()) {
                     chipBannedStatus.setVisibility(View.VISIBLE);
@@ -400,15 +390,11 @@ public class ProductDetailsActivity extends AppCompatActivity {
                 }
             }
 
-            // Safety Rating
             displaySafetyRating(currentProduct.getSafetyRating());
 
-            // Nutritional Information
             if (currentProduct.getNutritionalInfo() != null) {
                 displayNutritionalInfo(currentProduct.getNutritionalInfo());
             }
-
-            Log.d(TAG, "Product displayed successfully!");
 
         } catch (Exception e) {
             Log.e(TAG, "Error displaying product", e);
@@ -419,23 +405,28 @@ public class ProductDetailsActivity extends AppCompatActivity {
     private void displaySafetyRating(int rating) {
         try {
             if (tvSafetyRating != null) tvSafetyRating.setText(rating + "/10");
-            if (tvSafetyDescription != null) tvSafetyDescription.setText(SafetyRatingCalculator.getRatingDescription(rating));
+            if (tvSafetyDescription != null)
+                tvSafetyDescription.setText(SafetyRatingCalculator.getRatingDescription(rating));
+
+            int color;
+            if (rating >= 8) color = Color.parseColor("#4CAF50");
+            else if (rating >= 6) color = Color.parseColor("#8BC34A");
+            else if (rating >= 4) color = Color.parseColor("#FFC107");
+            else if (rating >= 2) color = Color.parseColor("#FF9800");
+            else color = Color.parseColor("#F44336");
 
             if (safetyRatingBar != null) {
                 int maxWidth = 300;
                 int width = (int) (maxWidth * (rating / 10.0));
-                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) safetyRatingBar.getLayoutParams();
-                params.width = (int) (width * getResources().getDisplayMetrics().density);
+                LinearLayout.LayoutParams params =
+                        (LinearLayout.LayoutParams) safetyRatingBar.getLayoutParams();
+                params.width = (int) (width * (int) getResources().getDisplayMetrics().density);
                 safetyRatingBar.setLayoutParams(params);
-
-                int color;
-                if (rating >= 8) color = Color.parseColor("#4CAF50");
-                else if (rating >= 6) color = Color.parseColor("#8BC34A");
-                else if (rating >= 4) color = Color.parseColor("#FFC107");
-                else if (rating >= 2) color = Color.parseColor("#FF9800");
-                else color = Color.parseColor("#F44336");
-
                 safetyRatingBar.setBackgroundColor(color);
+            }
+            
+            if (tvSafetyRating != null && tvSafetyRating.getBackground() != null) {
+                tvSafetyRating.getBackground().setTint(color);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error displaying safety rating", e);
@@ -444,32 +435,36 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private void displayNutritionalInfo(NutritionalInfo info) {
         try {
-            if (tvCalories != null) tvCalories.setText(String.format("%.0f kcal", info.getCalories()));
-
-            if (tvProtein != null) tvProtein.setText(String.format("%.1f g", info.getProtein()));
+            if (tvCalories != null)
+                tvCalories.setText(String.format("%.0f kcal", info.getCalories()));
+            if (tvProtein != null)
+                tvProtein.setText(String.format("%.1f g", info.getProtein()));
             if (tvProteinLevel != null) {
                 tvProteinLevel.setText(info.getProteinLevel());
                 setLevelColor(tvProteinLevel, info.getProteinLevel());
             }
-
-            if (tvCarbs != null) tvCarbs.setText(String.format("%.1f g", info.getCarbohydrates()));
+            if (tvCarbs != null)
+                tvCarbs.setText(String.format("%.1f g", info.getCarbohydrates()));
             if (tvCarbLevel != null) {
                 tvCarbLevel.setText(info.getCarbLevel());
                 setLevelColor(tvCarbLevel, info.getCarbLevel());
             }
-
-            if (tvSugar != null) tvSugar.setText(String.format("%.1f g", info.getSugar()));
+            if (tvSugar != null)
+                tvSugar.setText(String.format("%.1f g", info.getSugar()));
             if (tvSugarLevel != null) {
                 tvSugarLevel.setText(info.getSugarLevel());
                 setLevelColor(tvSugarLevel, info.getSugarLevel());
             }
-
-            if (tvFat != null) tvFat.setText(String.format("%.1f g", info.getFat()));
-            if (tvSaturatedFat != null) tvSaturatedFat.setText(String.format("%.1f g", info.getSaturatedFat()));
-            if (tvFiber != null) tvFiber.setText(String.format("%.1f g", info.getFiber()));
+            if (tvFat != null)
+                tvFat.setText(String.format("%.1f g", info.getFat()));
+            if (tvSaturatedFat != null)
+                tvSaturatedFat.setText(String.format("%.1f g", info.getSaturatedFat()));
+            if (tvFiber != null)
+                tvFiber.setText(String.format("%.1f g", info.getFiber()));
 
             double sodiumMg = info.getSodium() * 1000;
-            if (tvSodium != null) tvSodium.setText(String.format("%.0f mg", sodiumMg));
+            if (tvSodium != null)
+                tvSodium.setText(String.format("%.0f mg", sodiumMg));
             if (tvSodiumLevel != null) {
                 tvSodiumLevel.setText(info.getSodiumLevel());
                 setLevelColor(tvSodiumLevel, info.getSodiumLevel());
@@ -480,7 +475,7 @@ public class ProductDetailsActivity extends AppCompatActivity {
     }
 
     private void setLevelColor(TextView textView, String level) {
-        if (textView == null) return;
+        if (textView == null || level == null) return;
         if (level.contains("High") || level.contains("Excessive")) {
             textView.setTextColor(Color.parseColor("#F44336"));
         } else if (level.contains("Low")) {
@@ -491,28 +486,24 @@ public class ProductDetailsActivity extends AppCompatActivity {
     }
 
     private void showLoading() {
-        Log.d(TAG, "Showing loading...");
         if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
         if (layoutContent != null) layoutContent.setVisibility(View.GONE);
         if (layoutError != null) layoutError.setVisibility(View.GONE);
     }
 
     private void hideLoading() {
-        Log.d(TAG, "Hiding loading...");
         if (progressBar != null) progressBar.setVisibility(View.GONE);
     }
 
     private void showError(String message) {
-        Log.e(TAG, "Showing error: " + message);
+        runOnUiThread(() -> {
+            hideLoading();
+            if (layoutContent != null) layoutContent.setVisibility(View.GONE);
+            if (layoutError != null) layoutError.setVisibility(View.VISIBLE);
 
-        hideLoading();
-        if (layoutContent != null) layoutContent.setVisibility(View.GONE);
-        if (layoutError != null) layoutError.setVisibility(View.VISIBLE);
-
-        TextView tvError = findViewById(R.id.tvError);
-        if (tvError != null) tvError.setText(message);
-
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            TextView tvError = findViewById(R.id.tvError);
+            if (tvError != null) tvError.setText(message);
+        });
     }
 
     private void openAIChat() {
