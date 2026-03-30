@@ -20,34 +20,38 @@ import com.google.android.material.card.MaterialCardView;
 public class MainActivity extends AppCompatActivity {
 
     private static final int CAMERA_PERMISSION_CODE = 100;
-    private MaterialButton btnScanProduct;
-    private MaterialCardView cardHistory;
-    private MaterialCardView cardAbout;
-    private MaterialCardView cardDietDashboard;
-    private MaterialButton btnLogout;
-    private TextView tvWelcome;
-    
+    private static final int CAMERA_LABEL_CODE      = 101;
+
+    private MaterialButton    btnScanProduct;
+    private MaterialCardView  cardScanLabel;       // ← NEW
+    private MaterialCardView  cardHistory;
+    private MaterialCardView  cardAbout;
+    private MaterialCardView  cardDietDashboard;
+    private MaterialButton    btnLogout;
+    private TextView          tvWelcome;
+
     private FirebaseManager firebaseManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        
+
         firebaseManager = FirebaseManager.getInstance();
-        
+
         initViews();
         setupClickListeners();
         updateUI();
     }
 
     private void initViews() {
-        btnScanProduct = findViewById(R.id.btnScanProduct);
-        cardHistory = findViewById(R.id.cardHistory);
-        cardAbout = findViewById(R.id.cardAbout);
-        cardDietDashboard = findViewById(R.id.cardDietDashboard);
-        btnLogout = findViewById(R.id.btnLogout);
-        tvWelcome = findViewById(R.id.tvWelcome);
+        btnScanProduct   = findViewById(R.id.btnScanProduct);
+        cardScanLabel    = findViewById(R.id.cardScanLabel);   // ← NEW
+        cardHistory      = findViewById(R.id.cardHistory);
+        cardAbout        = findViewById(R.id.cardAbout);
+        cardDietDashboard= findViewById(R.id.cardDietDashboard);
+        btnLogout        = findViewById(R.id.btnLogout);
+        tvWelcome        = findViewById(R.id.tvWelcome);
     }
 
     private void updateUI() {
@@ -62,34 +66,49 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupClickListeners() {
+
+        // ── Scan Barcode ──────────────────────────────────────────────────
         btnScanProduct.setOnClickListener(v -> {
             if (checkCameraPermission()) {
-                openScanner();
+                openBarcodeScanner();
             } else {
-                requestCameraPermission();
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.CAMERA},
+                        CAMERA_PERMISSION_CODE);
             }
         });
 
+        // ── Scan Ingredient Label (NEW) ───────────────────────────────────
+        cardScanLabel.setOnClickListener(v -> {
+            if (checkCameraPermission()) {
+                openLabelScanner();
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.CAMERA},
+                        CAMERA_LABEL_CODE);
+            }
+        });
+
+        // ── Diet Dashboard ────────────────────────────────────────────────
         cardDietDashboard.setOnClickListener(v -> {
             if (firebaseManager.isUserLoggedIn()) {
-                Intent intent = new Intent(this, DietDashboardActivity.class);
-                startActivity(intent);
+                startActivity(new Intent(this, DietDashboardActivity.class));
             } else {
-                Toast.makeText(this, "Please login to track your diet", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Please login to track your diet",
+                        Toast.LENGTH_LONG).show();
                 startActivity(new Intent(this, LoginActivity.class));
             }
         });
 
-        cardHistory.setOnClickListener(v -> {
-            Intent intent = new Intent(this, HistoryActivity.class);
-            startActivity(intent);
-        });
+        // ── History ───────────────────────────────────────────────────────
+        cardHistory.setOnClickListener(v ->
+                startActivity(new Intent(this, HistoryActivity.class)));
 
-        cardAbout.setOnClickListener(v -> {
-            Intent intent = new Intent(this, AboutActivity.class);
-            startActivity(intent);
-        });
+        // ── About ─────────────────────────────────────────────────────────
+        cardAbout.setOnClickListener(v ->
+                startActivity(new Intent(this, AboutActivity.class)));
 
+        // ── Logout ────────────────────────────────────────────────────────
         btnLogout.setOnClickListener(v -> {
             firebaseManager.signOut();
             Intent intent = new Intent(this, LoginActivity.class);
@@ -99,33 +118,39 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void openBarcodeScanner() {
+        startActivity(new Intent(this, ScanActivity.class));
+    }
+
+    // Opens ImageIngredientActivity → OCR → ingredient safety → ProductDetailsActivity
+    private void openLabelScanner() {
+        startActivity(new Intent(this, ImageIngredient.class));
+    }
+
     private boolean checkCameraPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void requestCameraPermission() {
-        ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.CAMERA},
-                CAMERA_PERMISSION_CODE);
-    }
-
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == CAMERA_PERMISSION_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                openScanner();
-            } else {
-                Toast.makeText(this, "Camera permission is required to scan products",
-                        Toast.LENGTH_LONG).show();
-            }
-        }
-    }
+        boolean granted = grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED;
 
-    private void openScanner() {
-        Intent intent = new Intent(this, ScanActivity.class);
-        startActivity(intent);
+        if (requestCode == CAMERA_PERMISSION_CODE) {
+            if (granted) openBarcodeScanner();
+            else Toast.makeText(this,
+                    "Camera permission required to scan barcodes",
+                    Toast.LENGTH_LONG).show();
+
+        } else if (requestCode == CAMERA_LABEL_CODE) {
+            if (granted) openLabelScanner();
+            else Toast.makeText(this,
+                    "Camera permission required to scan labels",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 }

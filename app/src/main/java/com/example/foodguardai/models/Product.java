@@ -12,8 +12,8 @@ public class Product {
     private NutritionalInfo nutritionalInfo;
     private String fssaiLicense;
     private String manufacturerDetails;
+    private String ingredientsText;  // ← NEW: raw ingredients string from API
 
-    // Constructor
     public Product() {}
 
     // Getters and Setters
@@ -52,5 +52,11 @@ public class Product {
     public String getManufacturerDetails() { return manufacturerDetails; }
     public void setManufacturerDetails(String manufacturerDetails) {
         this.manufacturerDetails = manufacturerDetails;
+    }
+
+    // ← NEW
+    public String getIngredientsText() { return ingredientsText; }
+    public void setIngredientsText(String ingredientsText) {
+        this.ingredientsText = ingredientsText;
     }
 }

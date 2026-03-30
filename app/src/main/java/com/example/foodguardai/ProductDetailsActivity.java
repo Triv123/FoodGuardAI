@@ -11,14 +11,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.cardview.widget.CardView;
-import androidx.core.content.ContextCompat;
-import androidx.core.widget.NestedScrollView;
 
 import com.bumptech.glide.Glide;
-import com.example.foodguardai.api.ProductApiService;
-import com.example.foodguardai.api.ProductResponse;
 import com.example.foodguardai.api.RetrofitClient;
+import com.example.foodguardai.api.ProductResponse;
 import com.example.foodguardai.database.FirebaseManager;
 import com.example.foodguardai.models.DietEntry;
 import com.example.foodguardai.models.NutritionalInfo;
@@ -28,7 +24,7 @@ import com.example.foodguardai.utils.BannedProductChecker;
 import com.example.foodguardai.utils.NutritionalAnalyzer;
 import com.example.foodguardai.utils.SafetyRatingCalculator;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.chip.Chip;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import retrofit2.Call;
@@ -37,485 +33,381 @@ import retrofit2.Response;
 
 public class ProductDetailsActivity extends AppCompatActivity {
 
-    private static final String TAG = "ProductDetailsActivity";
+    private static final String TAG = "ProductDetails";
 
+    private TextView tvProductName, tvBrand, tvCategory;
+    private TextView tvSafetyRating, tvSafetyDesc, tvSafetyVerdict;
+    private TextView tvCalories, tvProtein, tvCarbs, tvSugar;
+    private TextView tvFat, tvSatFat, tvFiber, tvSodium;
+    private TextView tvProteinLevel, tvCarbLevel, tvSugarLevel, tvSodiumLevel;
+    private TextView tvIngredientsRaw;
+    private LinearLayout llIngredientFlags, llSafeIngredients;
+    private MaterialCardView cardIngredientWarning, cardIngredientSafe, cardBanned;
+    private TextView tvIngredientWarningTitle, tvIngredientSafeTitle, tvBannedReason;
+    private MaterialButton btnAskAI, btnAddToDiet;
     private CircularProgressIndicator progressBar;
-    private NestedScrollView layoutContent;
-    private LinearLayout layoutError;
-    private MaterialButton btnAddToDiet;
-    private FirebaseManager firebaseManager;
-    private ImageView imgProduct;
-    private TextView tvProductName;
-    private TextView tvBrand;
-    private TextView tvCategory;
-    private Chip chipBannedStatus;
-    private CardView cardSafetyRating;
-    private TextView tvSafetyRating;
-    private TextView tvSafetyDescription;
-    private View safetyRatingBar;
+    private ImageView ivProductImage;
 
-    private TextView tvCalories;
-    private TextView tvProtein;
-    private TextView tvProteinLevel;
-    private TextView tvCarbs;
-    private TextView tvCarbLevel;
-    private TextView tvSugar;
-    private TextView tvSugarLevel;
-    private TextView tvFat;
-    private TextView tvSaturatedFat;
-    private TextView tvFiber;
-    private TextView tvSodium;
-    private TextView tvSodiumLevel;
-
-    private MaterialButton btnAskAI;
-    private MaterialButton btnRetry;
-
-    private String barcode;
     private Product currentProduct;
-    private boolean historyAlreadySaved = false;
+    private FirebaseManager firebaseManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_product_details);
 
-        try {
-            setContentView(R.layout.activity_product_details);
+        firebaseManager = FirebaseManager.getInstance();
+        initViews();
 
-            barcode = getIntent().getStringExtra("BARCODE");
-            Log.d(TAG, "Barcode received: " + barcode);
-            firebaseManager = FirebaseManager.getInstance();
+        boolean fromOcr = getIntent().getBooleanExtra("FROM_OCR", false);
 
-            if (!initViews()) {
-                Toast.makeText(this, "Error loading screen", Toast.LENGTH_LONG).show();
-                finish();
-                return;
-            }
-
-            setupClickListeners();
-
-            if (barcode != null && !barcode.isEmpty()) {
-                fetchProductData(barcode);
+        if (fromOcr) {
+            Product ocrProduct = ImageIngredient.OcrProductHolder.product;
+            if (ocrProduct != null) {
+                displayProduct(ocrProduct);
+                ImageIngredient.OcrProductHolder.clear();
             } else {
-                showError("Invalid barcode received");
+                Toast.makeText(this, "No scan data found", Toast.LENGTH_SHORT).show();
+                finish();
             }
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error in onCreate", e);
-            Toast.makeText(this, "Critical error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            finish();
+        } else {
+            String barcode = getIntent().getStringExtra("BARCODE");
+            if (barcode != null) {
+                fetchProductByBarcode(barcode);
+            } else {
+                Toast.makeText(this, "No product data", Toast.LENGTH_SHORT).show();
+                finish();
+            }
         }
     }
 
-    private boolean initViews() {
-        try {
-            progressBar = findViewById(R.id.progressBar);
-            layoutContent = findViewById(R.id.layoutContent);
-            layoutError = findViewById(R.id.layoutError);
-            btnAddToDiet = findViewById(R.id.btnAddToDiet);
+    private void initViews() {
+        tvProductName         = findViewById(R.id.tvProductName);
+        tvBrand               = findViewById(R.id.tvBrand);
+        tvCategory            = findViewById(R.id.tvCategory);
+        tvSafetyRating        = findViewById(R.id.tvSafetyRating);
+        tvSafetyDesc          = findViewById(R.id.tvSafetyDesc);
+        tvSafetyVerdict       = findViewById(R.id.tvSafetyVerdict);
+        tvCalories            = findViewById(R.id.tvCalories);
+        tvProtein             = findViewById(R.id.tvProtein);
+        tvCarbs               = findViewById(R.id.tvCarbs);
+        tvSugar               = findViewById(R.id.tvSugar);
+        tvFat                 = findViewById(R.id.tvFat);
+        tvSatFat              = findViewById(R.id.tvSatFat);
+        tvFiber               = findViewById(R.id.tvFiber);
+        tvSodium              = findViewById(R.id.tvSodium);
+        tvProteinLevel        = findViewById(R.id.tvProteinLevel);
+        tvCarbLevel           = findViewById(R.id.tvCarbLevel);
+        tvSugarLevel          = findViewById(R.id.tvSugarLevel);
+        tvSodiumLevel         = findViewById(R.id.tvSodiumLevel);
+        tvIngredientsRaw      = findViewById(R.id.tvIngredientsRaw);
+        llIngredientFlags     = findViewById(R.id.llIngredientFlags);
+        llSafeIngredients     = findViewById(R.id.llSafeIngredients);
+        cardIngredientWarning = findViewById(R.id.cardIngredientWarning);
+        cardIngredientSafe    = findViewById(R.id.cardIngredientSafe);
+        tvIngredientWarningTitle = findViewById(R.id.tvIngredientWarningTitle);
+        tvIngredientSafeTitle    = findViewById(R.id.tvIngredientSafeTitle);
+        btnAskAI              = findViewById(R.id.btnAskAI);
+        btnAddToDiet          = findViewById(R.id.btnAddToDiet);
+        progressBar           = findViewById(R.id.progressBar);
+        ivProductImage        = findViewById(R.id.ivProductImage);
+        cardBanned            = findViewById(R.id.cardBanned);
+        tvBannedReason        = findViewById(R.id.tvBannedReason);
+    }
 
-            if (progressBar == null || layoutContent == null || layoutError == null) {
-                Log.e(TAG, "Core views are null!");
-                return false;
+    private void fetchProductByBarcode(String barcode) {
+        progressBar.setVisibility(View.VISIBLE);
+        RetrofitClient.getProductApi().getProductByBarcode(barcode)
+                .enqueue(new Callback<ProductResponse>() {
+                    @Override
+                    public void onResponse(Call<ProductResponse> call, Response<ProductResponse> response) {
+                        progressBar.setVisibility(View.GONE);
+                        if (response.isSuccessful() && response.body() != null && response.body().getStatus() == 1) {
+                            Product p = mapApiToProduct(barcode, response.body());
+                            displayProduct(p);
+                            saveScanHistory(p);
+                        } else {
+                            showNotFound(barcode);
+                        }
+                    }
+                    @Override
+                    public void onFailure(Call<ProductResponse> call, Throwable t) {
+                        progressBar.setVisibility(View.GONE);
+                        Log.e(TAG, "API failure", t);
+                        showNotFound(barcode);
+                    }
+                });
+    }
+
+    private Product mapApiToProduct(String barcode, ProductResponse resp) {
+        ProductResponse.ProductData d = resp.getProduct();
+        Product p = new Product();
+        p.setBarcode(barcode);
+        p.setProductName(d.getProductName() != null ? d.getProductName() : "Unknown Product");
+        p.setBrand(d.getBrands() != null ? d.getBrands() : "");
+        p.setCategory(d.getCategories() != null ? d.getCategories() : "");
+        p.setImageUrl(d.getImageUrl());
+        p.setIngredientsText(d.getIngredients());
+
+        NutritionalInfo n = new NutritionalInfo();
+        if (d.getNutriments() != null) {
+            ProductResponse.Nutriments nm = d.getNutriments();
+            n.setCalories(nm.getCalories());
+            n.setProtein(nm.getProteins());
+            n.setCarbohydrates(nm.getCarbohydrates());
+            n.setSugar(nm.getSugars());
+            n.setFat(nm.getFat());
+            n.setSaturatedFat(nm.getSaturatedFat());
+            n.setFiber(nm.getFiber());
+            n.setSodium(nm.getSodium());
+        }
+        NutritionalAnalyzer.analyzeNutrients(n);
+        p.setNutritionalInfo(n);
+
+        BannedProductChecker.BanStatus ban = BannedProductChecker.checkIfBanned(p);
+        p.setBanned(ban.isBanned());
+        p.setBanReason(ban.getReason());
+        p.setSafetyRating(SafetyRatingCalculator.calculateSafetyRating(p));
+        return p;
+    }
+
+    private void displayProduct(Product p) {
+        currentProduct = p;
+        tvProductName.setText(p.getProductName() != null ? p.getProductName() : "Unknown");
+        tvBrand.setText(p.getBrand() != null ? p.getBrand() : "");
+        tvCategory.setText(p.getCategory() != null ? p.getCategory() : "");
+
+        if (p.getImageUrl() != null && !p.getImageUrl().isEmpty()) {
+            Glide.with(this).load(p.getImageUrl()).into(ivProductImage);
+            ivProductImage.setVisibility(View.VISIBLE);
+        }
+
+        int rating = p.getSafetyRating();
+        tvSafetyRating.setText(rating + "/10");
+        tvSafetyDesc.setText(SafetyRatingCalculator.getRatingDescription(rating));
+        colorizeRating(rating);
+
+        if (p.isBanned()) {
+            cardBanned.setVisibility(View.VISIBLE);
+            tvBannedReason.setText("⛔  " + p.getBanReason());
+        } else {
+            cardBanned.setVisibility(View.GONE);
+        }
+
+        NutritionalInfo n = p.getNutritionalInfo();
+        if (n != null) {
+            tvCalories.setText(String.format("%.0f kcal", n.getCalories()));
+            tvProtein.setText(String.format("%.1f g", n.getProtein()));
+            tvCarbs.setText(String.format("%.1f g", n.getCarbohydrates()));
+            tvSugar.setText(String.format("%.1f g", n.getSugar()));
+            tvFat.setText(String.format("%.1f g", n.getFat()));
+            tvSatFat.setText(String.format("%.1f g", n.getSaturatedFat()));
+            tvFiber.setText(String.format("%.1f g", n.getFiber()));
+            tvSodium.setText(String.format("%.0f mg", n.getSodium() * 1000));
+            if (n.getProteinLevel() != null) tvProteinLevel.setText(n.getProteinLevel());
+            if (n.getCarbLevel()    != null) tvCarbLevel.setText(n.getCarbLevel());
+            if (n.getSugarLevel()   != null) tvSugarLevel.setText(n.getSugarLevel());
+            if (n.getSodiumLevel()  != null) tvSodiumLevel.setText(n.getSodiumLevel());
+        }
+
+        showIngredientAnalysis(p.getIngredientsText());
+        btnAskAI.setOnClickListener(v -> openAIChat());
+        btnAddToDiet.setOnClickListener(v -> addToDiet());
+    }
+
+    private void showIngredientAnalysis(String ingredientsText) {
+        if (ingredientsText == null || ingredientsText.trim().isEmpty()) {
+            tvIngredientsRaw.setText("No ingredient data available.");
+            cardIngredientWarning.setVisibility(View.GONE);
+            cardIngredientSafe.setVisibility(View.GONE);
+            tvSafetyVerdict.setVisibility(View.GONE);
+            return;
+        }
+        tvIngredientsRaw.setText(ingredientsText);
+        BannedProductChecker.IngredientAnalysisResult result =
+                BannedProductChecker.analyzeIngredients(ingredientsText);
+        showVerdict(result);
+
+        llIngredientFlags.removeAllViews();
+        if (!result.flaggedIngredients.isEmpty()) {
+            cardIngredientWarning.setVisibility(View.VISIBLE);
+            tvIngredientWarningTitle.setText("⚠️  " + result.flaggedIngredients.size() + " Flagged Ingredient(s)");
+            for (BannedProductChecker.IngredientFlag flag : result.flaggedIngredients)
+                llIngredientFlags.addView(buildFlagRow(flag));
+        } else {
+            cardIngredientWarning.setVisibility(View.GONE);
+        }
+
+        llSafeIngredients.removeAllViews();
+        if (!result.safeIngredients.isEmpty()) {
+            cardIngredientSafe.setVisibility(View.VISIBLE);
+            tvIngredientSafeTitle.setText("✅  " + result.safeIngredients.size() + " Safe Ingredient(s)");
+            int limit = Math.min(result.safeIngredients.size(), 12);
+            for (int i = 0; i < limit; i++)
+                llSafeIngredients.addView(buildSafeRow(result.safeIngredients.get(i)));
+            if (result.safeIngredients.size() > 12) {
+                TextView more = new TextView(this);
+                more.setText("+ " + (result.safeIngredients.size() - 12) + " more safe ingredients");
+                more.setTextColor(Color.GRAY);
+                more.setPadding(8, 4, 8, 4);
+                llSafeIngredients.addView(more);
             }
-
-            imgProduct = findViewById(R.id.imgProduct);
-            tvProductName = findViewById(R.id.tvProductName);
-            tvBrand = findViewById(R.id.tvBrand);
-            tvCategory = findViewById(R.id.tvCategory);
-            chipBannedStatus = findViewById(R.id.chipBannedStatus);
-
-            cardSafetyRating = findViewById(R.id.cardSafetyRating);
-            tvSafetyRating = findViewById(R.id.tvSafetyRating);
-            tvSafetyDescription = findViewById(R.id.tvSafetyDescription);
-            safetyRatingBar = findViewById(R.id.safetyRatingBar);
-
-            tvCalories = findViewById(R.id.tvCalories);
-            tvProtein = findViewById(R.id.tvProtein);
-            tvProteinLevel = findViewById(R.id.tvProteinLevel);
-            tvCarbs = findViewById(R.id.tvCarbs);
-            tvCarbLevel = findViewById(R.id.tvCarbLevel);
-            tvSugar = findViewById(R.id.tvSugar);
-            tvSugarLevel = findViewById(R.id.tvSugarLevel);
-            tvFat = findViewById(R.id.tvFat);
-            tvSaturatedFat = findViewById(R.id.tvSaturatedFat);
-            tvFiber = findViewById(R.id.tvFiber);
-            tvSodium = findViewById(R.id.tvSodium);
-            tvSodiumLevel = findViewById(R.id.tvSodiumLevel);
-
-            btnAskAI = findViewById(R.id.btnAskAI);
-            btnRetry = findViewById(R.id.btnRetry);
-
-            return true;
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error initializing views", e);
-            return false;
+        } else {
+            cardIngredientSafe.setVisibility(View.GONE);
         }
     }
 
-    private void setupClickListeners() {
-        if (btnAskAI != null) {
-            btnAskAI.setOnClickListener(v -> {
-                if (currentProduct != null) {
-                    openAIChat();
-                } else {
-                    Toast.makeText(this, "Product data not loaded yet", Toast.LENGTH_SHORT).show();
-                }
-            });
+    private void showVerdict(BannedProductChecker.IngredientAnalysisResult r) {
+        tvSafetyVerdict.setVisibility(View.VISIBLE);
+        tvSafetyVerdict.setPadding(24, 16, 24, 16);
+        switch (r.overallVerdict) {
+            case "AVOID":
+                tvSafetyVerdict.setText("❌  CONTAINS BANNED INGREDIENTS");
+                tvSafetyVerdict.setBackgroundColor(0xFFFFEBEE);
+                tvSafetyVerdict.setTextColor(0xFFB71C1C); break;
+            case "CAUTION":
+                tvSafetyVerdict.setText("⚠️  HARMFUL ADDITIVES — USE WITH CAUTION");
+                tvSafetyVerdict.setBackgroundColor(0xFFFFF8E1);
+                tvSafetyVerdict.setTextColor(0xFFE65100); break;
+            case "ALLERGEN_WARNING":
+                tvSafetyVerdict.setText("🚨  ALLERGEN PRESENT — CHECK BEFORE CONSUMING");
+                tvSafetyVerdict.setBackgroundColor(0xFFFFF3E0);
+                tvSafetyVerdict.setTextColor(0xFFBF360C); break;
+            case "SAFE":
+                tvSafetyVerdict.setText("✅  NO BANNED OR HARMFUL INGREDIENTS DETECTED");
+                tvSafetyVerdict.setBackgroundColor(0xFFE8F5E9);
+                tvSafetyVerdict.setTextColor(0xFF1B5E20); break;
+            default:
+                tvSafetyVerdict.setText("ℹ️  INGREDIENT DATA UNAVAILABLE");
+                tvSafetyVerdict.setBackgroundColor(0xFFF5F5F5);
+                tvSafetyVerdict.setTextColor(Color.DKGRAY);
         }
+    }
 
-        if (btnRetry != null) {
-            btnRetry.setOnClickListener(v -> {
-                if (barcode != null) fetchProductData(barcode);
-            });
+    private View buildFlagRow(BannedProductChecker.IngredientFlag flag) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(16, 12, 16, 12);
+        int bg;
+        switch (flag.severity) {
+            case "BANNED_INDIA": bg = 0xFFFFCDD2; break;
+            case "BANNED_USA": case "BANNED_EU": bg = 0xFFFFE0B2; break;
+            case "HARMFUL": bg = 0xFFFFFDE7; break;
+            default: bg = 0xFFF3E5F5;
         }
+        row.setBackgroundColor(bg);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 0, 10);
+        row.setLayoutParams(lp);
 
-        if (btnAddToDiet != null) {
-            btnAddToDiet.setOnClickListener(v -> {
-                if (currentProduct != null) addToDiet();
-            });
+        TextView name = new TextView(this);
+        name.setText(severityEmoji(flag.severity) + "  " + flag.ingredient);
+        name.setTextSize(14f);
+        name.setTypeface(null, android.graphics.Typeface.BOLD);
+        name.setTextColor(0xFF212121);
+        row.addView(name);
+
+        TextView reason = new TextView(this);
+        reason.setText(flag.reason);
+        reason.setTextSize(12f);
+        reason.setTextColor(0xFF616161);
+        row.addView(reason);
+
+        TextView bannedIn = new TextView(this);
+        bannedIn.setText("Restricted in: " + flag.bannedIn);
+        bannedIn.setTextSize(11f);
+        bannedIn.setTextColor(0xFF9E9E9E);
+        row.addView(bannedIn);
+        return row;
+    }
+
+    private View buildSafeRow(String name) {
+        TextView tv = new TextView(this);
+        tv.setText("✓  " + name);
+        tv.setTextSize(13f);
+        tv.setTextColor(0xFF388E3C);
+        tv.setPadding(8, 4, 8, 4);
+        return tv;
+    }
+
+    private String severityEmoji(String s) {
+        switch (s) {
+            case "BANNED_INDIA": return "🚫";
+            case "BANNED_USA":   return "🇺🇸⛔";
+            case "BANNED_EU":    return "🇪🇺⛔";
+            case "HARMFUL":      return "⚠️";
+            default:             return "🚨";
         }
+    }
+
+    private void colorizeRating(int rating) {
+        int c;
+        if (rating >= 8) c = 0xFF2E7D32;
+        else if (rating >= 6) c = 0xFFF9A825;
+        else if (rating >= 4) c = 0xFFE65100;
+        else c = 0xFFC62828;
+        tvSafetyRating.setTextColor(c);
+        tvSafetyDesc.setTextColor(c);
+    }
+
+    private void showNotFound(String barcode) {
+        tvProductName.setText("Product Not Found");
+        tvBrand.setText("Barcode: " + barcode);
+        tvCategory.setText("Not in Open Food Facts database");
+        tvSafetyRating.setText("N/A");
+        tvSafetyDesc.setText("No data available");
+        tvIngredientsRaw.setText("Product not found.\n\nTry: Main screen → Scan Ingredient Label");
+        cardIngredientWarning.setVisibility(View.GONE);
+        cardIngredientSafe.setVisibility(View.GONE);
+        tvSafetyVerdict.setVisibility(View.GONE);
+        cardBanned.setVisibility(View.GONE);
+    }
+
+    private void saveScanHistory(Product p) {
+        if (!firebaseManager.isUserLoggedIn()) return;
+        ScanHistory s = new ScanHistory(firebaseManager.getCurrentUser().getUid(),
+                p.getBarcode(), p.getProductName(), p.getBrand(), p.getSafetyRating(), "barcode");
+        firebaseManager.addScanHistory(s, null);
+    }
+
+    private void openAIChat() {
+        if (currentProduct == null) return;
+        Intent i = new Intent(this, AIChatActivity.class);
+        i.putExtra("PRODUCT_NAME", currentProduct.getProductName());
+        i.putExtra("SAFETY_RATING", currentProduct.getSafetyRating());
+        if (currentProduct.getIngredientsText() != null)
+            i.putExtra("INGREDIENTS", currentProduct.getIngredientsText());
+        startActivity(i);
     }
 
     private void addToDiet() {
         if (!firebaseManager.isUserLoggedIn()) {
-            Toast.makeText(this, "Please login to track your diet", Toast.LENGTH_LONG).show();
-            startActivity(new Intent(this, LoginActivity.class));
+            Toast.makeText(this, "Please login to track diet", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        if (currentProduct.getNutritionalInfo() == null) {
-            Toast.makeText(this, "No nutritional data available for this product",
-                    Toast.LENGTH_SHORT).show();
+        if (currentProduct == null || currentProduct.getNutritionalInfo() == null) {
+            Toast.makeText(this, "No nutritional data to add", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        if (btnAddToDiet != null) {
-            btnAddToDiet.setEnabled(false);
-            btnAddToDiet.setText("Adding...");
-        }
-
-        String userId = firebaseManager.getCurrentUser().getUid();
-
-        DietEntry entry = new DietEntry(
-                userId,
-                currentProduct.getProductName(),
-                currentProduct.getBarcode(),
-                currentProduct.getNutritionalInfo()
-        );
-
+        btnAddToDiet.setEnabled(false);
+        DietEntry entry = new DietEntry(firebaseManager.getCurrentUser().getUid(),
+                currentProduct.getProductName(), currentProduct.getBarcode(),
+                currentProduct.getNutritionalInfo());
         firebaseManager.addDietEntry(entry, new FirebaseManager.DietCallback() {
-            @Override
-            public void onSuccess() {
+            @Override public void onSuccess() {
                 runOnUiThread(() -> {
-                    if (btnAddToDiet != null) {
-                        btnAddToDiet.setEnabled(true);
-                        btnAddToDiet.setText("✓ Added to Diet");
-                        btnAddToDiet.setBackgroundColor(
-                                ContextCompat.getColor(ProductDetailsActivity.this,
-                                        android.R.color.holo_green_dark));
-                    }
-                    Toast.makeText(ProductDetailsActivity.this,
-                            "Added to your diet tracker!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ProductDetailsActivity.this, "Added to diet ✓", Toast.LENGTH_SHORT).show();
+                    btnAddToDiet.setText("Added ✓");
+                    btnAddToDiet.setEnabled(true);
                 });
             }
-
-            @Override
-            public void onError(String error) {
+            @Override public void onError(String error) {
                 runOnUiThread(() -> {
-                    if (btnAddToDiet != null) {
-                        btnAddToDiet.setEnabled(true);
-                        btnAddToDiet.setText("Add to My Diet");
-                    }
-                    Toast.makeText(ProductDetailsActivity.this,
-                            "Failed to add: " + error, Toast.LENGTH_LONG).show();
+                    Toast.makeText(ProductDetailsActivity.this, "Error: " + error, Toast.LENGTH_SHORT).show();
+                    btnAddToDiet.setEnabled(true);
                 });
             }
         });
-    }
-
-    private void saveToScanHistory() {
-        if (!firebaseManager.isUserLoggedIn() || historyAlreadySaved) return;
-        if (currentProduct == null) return;
-
-        historyAlreadySaved = true;
-
-        String userId = firebaseManager.getCurrentUser().getUid();
-        ScanHistory scan = new ScanHistory(
-                userId,
-                currentProduct.getBarcode(),
-                currentProduct.getProductName(),
-                currentProduct.getBrand(),
-                currentProduct.getSafetyRating(),
-                "barcode"
-        );
-
-        firebaseManager.addScanHistory(scan, new FirebaseManager.DietCallback() {
-            @Override
-            public void onSuccess() {
-                Log.d(TAG, "Scan history saved automatically");
-            }
-
-            @Override
-            public void onError(String error) {
-                Log.e(TAG, "Failed to save scan history: " + error);
-                historyAlreadySaved = false;
-            }
-        });
-    }
-
-    private void fetchProductData(String barcode) {
-        Log.d(TAG, "Fetching product: " + barcode);
-        showLoading();
-
-        try {
-            ProductApiService apiService = RetrofitClient.getProductApi();
-            Call<ProductResponse> call = apiService.getProductByBarcode(barcode);
-
-            call.enqueue(new Callback<ProductResponse>() {
-                @Override
-                public void onResponse(Call<ProductResponse> call,
-                                       Response<ProductResponse> response) {
-                    try {
-                        if (response.isSuccessful() && response.body() != null) {
-                            ProductResponse productResponse = response.body();
-
-                            if (productResponse.getStatus() == 1
-                                    && productResponse.getProduct() != null) {
-                                processProductData(productResponse.getProduct());
-                            } else {
-                                showError("Product not found in database.\n\n" +
-                                        "Try these test barcodes:\n" +
-                                        "• 3017620422003 (Nutella)\n" +
-                                        "• 5449000000996 (Coca-Cola)\n" +
-                                        "• 8076809513456 (Pasta)");
-                            }
-                        } else {
-                            showError("API Error: " + response.code());
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error processing response", e);
-                        showError("Error: " + e.getMessage());
-                    }
-                }
-
-                @Override
-                public void onFailure(Call<ProductResponse> call, Throwable t) {
-                    Log.e(TAG, "API call failed", t);
-                    showError("Network error. Please check your connection.\n\n" + t.getMessage());
-                }
-            });
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error making API call", e);
-            showError("Error: " + e.getMessage());
-        }
-    }
-
-    private void processProductData(ProductResponse.ProductData productData) {
-        try {
-            currentProduct = new Product();
-            currentProduct.setBarcode(barcode);
-
-            String productName = productData.getProductName();
-            currentProduct.setProductName(productName != null ? productName : "Unknown Product");
-            currentProduct.setBrand(productData.getBrands());
-            currentProduct.setCategory(productData.getCategories());
-            currentProduct.setImageUrl(productData.getImageUrl());
-
-            if (productData.getNutriments() != null) {
-                NutritionalInfo nutritionalInfo = new NutritionalInfo();
-                nutritionalInfo.setServingSize(100);
-                nutritionalInfo.setServingUnit("g");
-                nutritionalInfo.setCalories(productData.getNutriments().getCalories());
-                nutritionalInfo.setProtein(productData.getNutriments().getProteins());
-                nutritionalInfo.setCarbohydrates(productData.getNutriments().getCarbohydrates());
-                nutritionalInfo.setSugar(productData.getNutriments().getSugars());
-                nutritionalInfo.setFat(productData.getNutriments().getFat());
-                nutritionalInfo.setSaturatedFat(productData.getNutriments().getSaturatedFat());
-                nutritionalInfo.setFiber(productData.getNutriments().getFiber());
-                nutritionalInfo.setSodium(productData.getNutriments().getSodium());
-
-                NutritionalAnalyzer.analyzeNutrients(nutritionalInfo);
-                currentProduct.setNutritionalInfo(nutritionalInfo);
-            }
-
-            BannedProductChecker.BanStatus banStatus =
-                    BannedProductChecker.checkIfBanned(currentProduct);
-            currentProduct.setBanned(banStatus.isBanned());
-            currentProduct.setBanReason(banStatus.getReason());
-
-            int safetyRating = SafetyRatingCalculator.calculateSafetyRating(currentProduct);
-            currentProduct.setSafetyRating(safetyRating);
-
-            runOnUiThread(() -> {
-                displayProduct();
-                saveToScanHistory();
-            });
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error processing product data", e);
-            runOnUiThread(() -> showError("Processing Error: " + e.getMessage()));
-        }
-    }
-
-    private void displayProduct() {
-        try {
-            hideLoading();
-            layoutContent.setVisibility(View.VISIBLE);
-            layoutError.setVisibility(View.GONE);
-            if (btnAddToDiet != null) btnAddToDiet.setVisibility(View.VISIBLE);
-
-            if (imgProduct != null && currentProduct.getImageUrl() != null) {
-                Glide.with(this)
-                        .load(currentProduct.getImageUrl())
-                        .placeholder(R.drawable.ic_product_placeholder)
-                        .error(R.drawable.ic_product_placeholder)
-                        .into(imgProduct);
-            }
-
-            if (tvProductName != null) tvProductName.setText(currentProduct.getProductName());
-            if (tvBrand != null) tvBrand.setText(
-                    currentProduct.getBrand() != null ? currentProduct.getBrand() : "Unknown Brand");
-            if (tvCategory != null) tvCategory.setText(
-                    currentProduct.getCategory() != null
-                            ? currentProduct.getCategory() : "Unknown Category");
-
-            if (chipBannedStatus != null) {
-                if (currentProduct.isBanned()) {
-                    chipBannedStatus.setVisibility(View.VISIBLE);
-                    chipBannedStatus.setText("⚠️ BANNED - " + currentProduct.getBanReason());
-                } else {
-                    chipBannedStatus.setVisibility(View.GONE);
-                }
-            }
-
-            displaySafetyRating(currentProduct.getSafetyRating());
-
-            if (currentProduct.getNutritionalInfo() != null) {
-                displayNutritionalInfo(currentProduct.getNutritionalInfo());
-            }
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error displaying product", e);
-            showError("Display Error: " + e.getMessage());
-        }
-    }
-
-    private void displaySafetyRating(int rating) {
-        try {
-            if (tvSafetyRating != null) tvSafetyRating.setText(rating + "/10");
-            if (tvSafetyDescription != null)
-                tvSafetyDescription.setText(SafetyRatingCalculator.getRatingDescription(rating));
-
-            int color;
-            if (rating >= 8) color = Color.parseColor("#4CAF50");
-            else if (rating >= 6) color = Color.parseColor("#8BC34A");
-            else if (rating >= 4) color = Color.parseColor("#FFC107");
-            else if (rating >= 2) color = Color.parseColor("#FF9800");
-            else color = Color.parseColor("#F44336");
-
-            if (safetyRatingBar != null) {
-                int maxWidth = 300;
-                int width = (int) (maxWidth * (rating / 10.0));
-                LinearLayout.LayoutParams params =
-                        (LinearLayout.LayoutParams) safetyRatingBar.getLayoutParams();
-                params.width = (int) (width * (int) getResources().getDisplayMetrics().density);
-                safetyRatingBar.setLayoutParams(params);
-                safetyRatingBar.setBackgroundColor(color);
-            }
-            
-            if (tvSafetyRating != null && tvSafetyRating.getBackground() != null) {
-                tvSafetyRating.getBackground().setTint(color);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error displaying safety rating", e);
-        }
-    }
-
-    private void displayNutritionalInfo(NutritionalInfo info) {
-        try {
-            if (tvCalories != null)
-                tvCalories.setText(String.format("%.0f kcal", info.getCalories()));
-            if (tvProtein != null)
-                tvProtein.setText(String.format("%.1f g", info.getProtein()));
-            if (tvProteinLevel != null) {
-                tvProteinLevel.setText(info.getProteinLevel());
-                setLevelColor(tvProteinLevel, info.getProteinLevel());
-            }
-            if (tvCarbs != null)
-                tvCarbs.setText(String.format("%.1f g", info.getCarbohydrates()));
-            if (tvCarbLevel != null) {
-                tvCarbLevel.setText(info.getCarbLevel());
-                setLevelColor(tvCarbLevel, info.getCarbLevel());
-            }
-            if (tvSugar != null)
-                tvSugar.setText(String.format("%.1f g", info.getSugar()));
-            if (tvSugarLevel != null) {
-                tvSugarLevel.setText(info.getSugarLevel());
-                setLevelColor(tvSugarLevel, info.getSugarLevel());
-            }
-            if (tvFat != null)
-                tvFat.setText(String.format("%.1f g", info.getFat()));
-            if (tvSaturatedFat != null)
-                tvSaturatedFat.setText(String.format("%.1f g", info.getSaturatedFat()));
-            if (tvFiber != null)
-                tvFiber.setText(String.format("%.1f g", info.getFiber()));
-
-            double sodiumMg = info.getSodium() * 1000;
-            if (tvSodium != null)
-                tvSodium.setText(String.format("%.0f mg", sodiumMg));
-            if (tvSodiumLevel != null) {
-                tvSodiumLevel.setText(info.getSodiumLevel());
-                setLevelColor(tvSodiumLevel, info.getSodiumLevel());
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error displaying nutrition info", e);
-        }
-    }
-
-    private void setLevelColor(TextView textView, String level) {
-        if (textView == null || level == null) return;
-        if (level.contains("High") || level.contains("Excessive")) {
-            textView.setTextColor(Color.parseColor("#F44336"));
-        } else if (level.contains("Low")) {
-            textView.setTextColor(Color.parseColor("#4CAF50"));
-        } else {
-            textView.setTextColor(Color.parseColor("#FF9800"));
-        }
-    }
-
-    private void showLoading() {
-        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
-        if (layoutContent != null) layoutContent.setVisibility(View.GONE);
-        if (layoutError != null) layoutError.setVisibility(View.GONE);
-    }
-
-    private void hideLoading() {
-        if (progressBar != null) progressBar.setVisibility(View.GONE);
-    }
-
-    private void showError(String message) {
-        runOnUiThread(() -> {
-            hideLoading();
-            if (layoutContent != null) layoutContent.setVisibility(View.GONE);
-            if (layoutError != null) layoutError.setVisibility(View.VISIBLE);
-
-            TextView tvError = findViewById(R.id.tvError);
-            if (tvError != null) tvError.setText(message);
-        });
-    }
-
-    private void openAIChat() {
-        try {
-            Intent intent = new Intent(this, AIChatActivity.class);
-            intent.putExtra("PRODUCT_NAME", currentProduct.getProductName());
-            intent.putExtra("PRODUCT_BARCODE", currentProduct.getBarcode());
-            intent.putExtra("SAFETY_RATING", currentProduct.getSafetyRating());
-            startActivity(intent);
-        } catch (Exception e) {
-            Log.e(TAG, "Error opening AI chat", e);
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
     }
 }

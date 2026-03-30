@@ -73,7 +73,11 @@ public class ScanActivity extends AppCompatActivity {
         tvScanInstruction = findViewById(R.id.tvScanInstruction);
         btnManualEntry = findViewById(R.id.btnManualEntry);
         progressIndicator = findViewById(R.id.progressIndicator);
-
+        MaterialButton btnScanLabel = findViewById(R.id.btnScanLabel);
+        btnScanLabel.setOnClickListener(v -> {
+            Intent intent = new Intent(ScanActivity.this, ImageIngredient.class);
+            startActivity(intent);
+        });
         btnManualEntry.setOnClickListener(v -> showManualEntryDialog());
         btnToggleMode = findViewById(R.id.btnToggleMode);
         tvModeIndicator = findViewById(R.id.tvModeIndicator);
