@@ -2,6 +2,8 @@ package com.example.foodguardai.api;
 
 import android.util.Log;
 
+import com.example.foodguardai.BuildConfig;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -16,9 +18,9 @@ import okhttp3.Response;
 public class ApiManager {
     private static final String TAG = "ApiManager";
 
-    // ── PASTE YOUR OPENROUTER KEY HERE (sk-or-v1-...) ────────────────────
-    private static final String OPENROUTER_API_KEY = "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";
-    // ─────────────────────────────────────────────────────────────────────
+    // ── API key injected at build time from local.properties (gitignored) ──
+    private static final String OPENROUTER_API_KEY = BuildConfig.OPENROUTER_API_KEY;
+    // ───────────────────────────────────────────────────────────────────────
 
     private static final String URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -51,7 +53,8 @@ public class ApiManager {
         if (OPENROUTER_API_KEY.startsWith("PASTE_") || OPENROUTER_API_KEY.trim().isEmpty()) {
             callback.onError(
                     "API key not set.\n\n" +
-                            "Go to openrouter.ai/keys → Create Key → paste it in ApiManager.java"
+                            "Go to openrouter.ai/keys → Create Key →\n" +
+                            "add it to local.properties as OPENROUTER_API_KEY=..."
             );
             return;
         }
@@ -135,7 +138,7 @@ public class ApiManager {
                                     "1. Go to openrouter.ai/keys\n" +
                                     "2. Delete old key → Create new key\n" +
                                     "3. Copy the FULL key\n" +
-                                    "4. Paste in ApiManager.java on ONE line, no spaces"
+                                    "4. Update local.properties (OPENROUTER_API_KEY=...)"
                     );
 
                 } else if (code == 429) {

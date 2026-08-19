@@ -181,13 +181,13 @@ Open the project in **Android Studio** → *File → Open* → select the cloned
 For the AI chat assistant, add an [OpenRouter](https://openrouter.ai/keys) API key:
 
 1. Create a free key at `openrouter.ai/keys`
-2. Paste it in [`ApiManager.java`](app/src/main/java/com/example/foodguardai/api/ApiManager.java#L20)
+2. Open `local.properties` (gitignored — never committed) and add:
 
-```java
-private static final String OPENROUTER_API_KEY = "sk-or-v1-...";
+```properties
+OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-The app ships with a fallback chain of free models (`openrouter/free`, Llama 4, DeepSeek, Mistral, etc.), so it keeps working even if one model is down.
+The key is injected at build time via `BuildConfig.OPENROUTER_API_KEY`, so the source stays secret-free. The app ships with a fallback chain of free models (`openrouter/free`, Llama 4, DeepSeek, Mistral, etc.), so it keeps working even if one model is down.
 
 ### 4. Run
 

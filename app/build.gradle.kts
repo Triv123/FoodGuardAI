@@ -1,7 +1,19 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
 }
+
+// Read secrets from local.properties (gitignored) — never hardcode API keys in source.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) load(FileInputStream(file))
+}
+val openRouterApiKey: String =
+    localProperties.getProperty("OPENROUTER_API_KEY") ?: "PASTE_YOUR_OPENROUTER_API_KEY_HERE"
+
 android {
     namespace = "com.example.foodguardai"
     compileSdk = 34
@@ -14,6 +26,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
     }
 
     buildTypes {
@@ -33,6 +47,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
