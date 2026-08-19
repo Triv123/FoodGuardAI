@@ -70,35 +70,35 @@ The rating is computed by [`SafetyRatingCalculator`](app/src/main/java/com/examp
 ## 🏗️ System Architecture
 
 ```mermaid
-flowchart TB
-    subgraph App[Android App - Food Guard AI]
-        AUTHUI[Splash · Login · Register]
-        DASH[Dashboard · History · Diet]
-        SCAN[Scan Activity - CameraX]
-        OCR[Label OCR Capture - Camera / Gallery]
-        DETAILS[Product Details & Safety Rating]
-        CHAT[AI Assistant + Voice Control]
+graph TB
+    subgraph App["Android App - Food Guard AI"]
+        AUTHUI["Splash / Login / Register"]
+        DASH["Dashboard / History / Diet"]
+        SCAN["Scan Activity - CameraX"]
+        OCR["Label OCR Capture - Camera / Gallery"]
+        DETAILS["Product Details and Safety Rating"]
+        CHAT["AI Assistant and Voice Control"]
     end
 
-    subgraph OnDevice[On-Device Intelligence]
-        BARCODE[ML Kit Barcode Scanning]
-        TEXT[ML Kit Text Recognition]
-        NUTRI[Nutrition Extractor / Analyzer]
-        BANNED[Banned Ingredient Checker]
-        RATING[Safety Rating Calculator]
-        VOICE[Voice Manager + Command Processor]
+    subgraph OnDevice["On-Device Intelligence"]
+        BARCODE["ML Kit Barcode Scanning"]
+        TEXT["ML Kit Text Recognition"]
+        NUTRI["Nutrition Extractor / Analyzer"]
+        BANNED["Banned Ingredient Checker"]
+        RATING["Safety Rating Calculator"]
+        VOICE["Voice Manager and Command Processor"]
     end
 
-    subgraph Cloud[Cloud Services]
-        OFF[Open Food Facts API]
-        LLM[OpenRouter LLM - Free Model Fallback Chain]
-        FIRE[Firebase Auth · Analytics]
+    subgraph Cloud["Cloud Services"]
+        OFF["Open Food Facts API"]
+        LLM["OpenRouter LLM - Free Model Fallback Chain"]
+        FIRE["Firebase Auth / Analytics"]
     end
 
-    subgraph Data[Data Layer]
-        USERS[(Firestore - users)]
-        SCANS[(Firestore - scan_history)]
-        DIET[(Firestore - diet_entries)]
+    subgraph Data["Data Layer"]
+        USERS[("Firestore - users")]
+        SCANS[("Firestore - scan_history")]
+        DIET[("Firestore - diet_entries")]
     end
 
     AUTHUI --> DASH
