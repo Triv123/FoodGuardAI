@@ -71,72 +71,37 @@ The rating is computed by [`SafetyRatingCalculator`](app/src/main/java/com/examp
 
 ```mermaid
 graph TB
-    subgraph App["Android App - Food Guard AI"]
-        AUTHUI["Splash / Login / Register"]
-        DASH["Dashboard / History / Diet"]
-        SCAN["Scan Activity - CameraX"]
-        OCR["Label OCR Capture - Camera / Gallery"]
-        DETAILS["Product Details and Safety Rating"]
-        CHAT["AI Assistant and Voice Control"]
+    subgraph App["Android App"]
+        AUTH["Auth - Login / Register"]
+        UI["Dashboard / Scanner / History / Diet"]
+        DETAILS["Product Details and AI Chat"]
     end
 
-    subgraph OnDevice["On-Device Intelligence"]
-        BARCODE["ML Kit Barcode Scanning"]
-        TEXT["ML Kit Text Recognition"]
-        NUTRI["Nutrition Extractor / Analyzer"]
-        BANNED["Banned Ingredient Checker"]
-        RATING["Safety Rating Calculator"]
-        VOICE["Voice Manager and Command Processor"]
+    subgraph Core["On-Device Intelligence"]
+        ML["ML Kit - Barcode + Text Recognition"]
+        ENGINE["Analysis Engine - Nutrition, Banned Ingredients, Safety Rating"]
     end
 
-    subgraph Cloud["Cloud Services"]
+    subgraph Services["Cloud Services"]
         OFF["Open Food Facts API"]
-        LLM["OpenRouter LLM - Free Model Fallback Chain"]
-        FIRE["Firebase Auth / Analytics"]
+        LLM["OpenRouter LLM"]
     end
 
-    subgraph Data["Data Layer"]
-        USERS[("Firestore - users")]
-        SCANS[("Firestore - scan_history")]
-        DIET[("Firestore - diet_entries")]
+    subgraph Backend["Backend and Data"]
+        FIRE["Firebase - Auth + Analytics"]
+        DB[("Firestore - Users, Scans, Diet")]
     end
 
-    AUTHUI --> DASH
-    FIRE --> AUTHUI
+    AUTH --> UI
+    FIRE --> AUTH
 
-    DASH --> SCAN
-    DASH --> OCR
-    DASH --> DETAILS
-    DASH --> CHAT
-
-    SCAN --> BARCODE
-    BARCODE --> OFF
-    OFF --> DETAILS
-
-    OCR --> TEXT
-    TEXT --> NUTRI
-    TEXT --> BANNED
-    NUTRI --> DETAILS
-    BANNED --> RATING
-
-    DETAILS --> RATING
-    RATING --> DETAILS
-    DETAILS --> CHAT
-
-    CHAT --> VOICE
-    VOICE --> CHAT
-    CHAT --> LLM
-    LLM --> CHAT
-
-    FIRE --> DETAILS
-    FIRE --> CHAT
-    FIRE --> DASH
-
-    DETAILS --> SCANS
-    DETAILS --> DIET
-    DASH --> SCANS
-    DASH --> DIET
-    DASH --> USERS
+    UI --> ML
+    ML --> ENGINE
+    ML --> OFF
+    ENGINE --> DETAILS
+    DETAILS --> LLM
+    DETAILS --> DB
+    UI --> DB
 ```
 
 ---
