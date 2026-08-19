@@ -1,15 +1,36 @@
-*.iml
-.gradle
+# ── Gradle ───────────────────────────────────────────────
+.gradle/
+build/
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
 /captures
-.externalNativeBuild
-.cxx
-local.properties
+
+# ── IDE ──────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.classpath
+.project
+.settings/
+
+# ── Android / Build artifacts ────────────────────────────
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.keystore
+*.jks
+.externalNativeBuild/
+.cxx/
+*.hprof
+/release/
+
+# ── Firebase (contains environment-specific config) ─────
+google-services.json
+
+# ── Misc ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
