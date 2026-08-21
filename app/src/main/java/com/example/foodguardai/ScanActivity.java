@@ -21,6 +21,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
 
+import com.example.foodguardai.logging.TestLog;
+import com.example.foodguardai.logging.TestLogManager;
 import com.example.foodguardai.utils.TextRecognitionHelper;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
@@ -50,6 +52,7 @@ public class ScanActivity extends AppCompatActivity {
     private boolean isScanning = true;
     private boolean isProcessing = false;
     private long lastScanTime = 0;
+    private long barcodeScanStartTime = 0;
 
     private MaterialButton btnToggleMode;
     private TextView tvModeIndicator;
@@ -178,12 +181,10 @@ public class ScanActivity extends AppCompatActivity {
         }
 
         if (isOcrMode) {
-            // Label scanning logic could go here if it was automated
             imageProxy.close();
             return;
         }
 
-        // Check cooldown period
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastScanTime < SCAN_COOLDOWN) {
             imageProxy.close();
@@ -195,10 +196,18 @@ public class ScanActivity extends AppCompatActivity {
             return;
         }
 
+        if (barcodeScanStartTime == 0) {
+            barcodeScanStartTime = System.currentTimeMillis();
+        }
+
         InputImage image = InputImage.fromMediaImage(
                 imageProxy.getImage(),
                 imageProxy.getImageInfo().getRotationDegrees()
         );
+
+        if (barcodeScanStartTime == 0) {
+            barcodeScanStartTime = System.currentTimeMillis();
+        }
 
         barcodeScanner.process(image)
                 .addOnSuccessListener(this::processBarcodes)
@@ -208,6 +217,15 @@ public class ScanActivity extends AppCompatActivity {
 
     private void processBarcodes(List<Barcode> barcodes) {
         if (!isScanning || isProcessing || barcodes.isEmpty()) {
+            if (barcodes.isEmpty() && barcodeScanStartTime > 0) {
+                long latency = System.currentTimeMillis() - barcodeScanStartTime;
+                if (latency > 10000) {
+                    TestLog failLog = TestLogManager.getInstance().createBarcodeLog(
+                            null, false, false, latency, "no_barcode_found_in_frame");
+                    TestLogManager.getInstance().log(failLog);
+                    barcodeScanStartTime = 0;
+                }
+            }
             return;
         }
 
@@ -226,6 +244,11 @@ public class ScanActivity extends AppCompatActivity {
 
         isProcessing = true;
         isScanning = false;
+
+        long latency = System.currentTimeMillis() - barcodeScanStartTime;
+        TestLog barcodeLog = TestLogManager.getInstance().createBarcodeLog(
+                barcode, true, false, latency, "barcode_detected");
+        TestLogManager.getInstance().log(barcodeLog);
 
         runOnUiThread(() -> {
             progressIndicator.setVisibility(View.VISIBLE);
@@ -302,6 +325,7 @@ public class ScanActivity extends AppCompatActivity {
         super.onResume();
         isScanning = true;
         isProcessing = false;
+        barcodeScanStartTime = System.currentTimeMillis();
     }
 
     @Override

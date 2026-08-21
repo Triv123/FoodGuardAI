@@ -2,6 +2,9 @@ package com.example.foodguardai.utils;
 
 import android.util.Log;
 
+import com.example.foodguardai.logging.TestLog;
+import com.example.foodguardai.logging.TestLogManager;
+
 public class VoiceCommandProcessor {
     private static final String TAG = "VoiceCommandProcessor";
 
@@ -29,40 +32,54 @@ public class VoiceCommandProcessor {
     public static ProcessedCommand processCommand(String command) {
         String lowercaseCommand = command.toLowerCase().trim();
         Log.d(TAG, "Processing command: " + lowercaseCommand);
+        long startTime = System.currentTimeMillis();
+
+        ProcessedCommand result;
 
         // Scan barcode
         if (lowercaseCommand.contains("scan") &&
                 (lowercaseCommand.contains("barcode") || lowercaseCommand.contains("code"))) {
-            return new ProcessedCommand(CommandType.SCAN_BARCODE, null, command);
+            result = new ProcessedCommand(CommandType.SCAN_BARCODE, null, command);
         }
-
         // Scan label
-        if (lowercaseCommand.contains("scan") &&
+        else if (lowercaseCommand.contains("scan") &&
                 (lowercaseCommand.contains("label") || lowercaseCommand.contains("text"))) {
-            return new ProcessedCommand(CommandType.SCAN_LABEL, null, command);
+            result = new ProcessedCommand(CommandType.SCAN_LABEL, null, command);
         }
-
         // Add to diet
-        if ((lowercaseCommand.contains("add") && lowercaseCommand.contains("diet")) ||
+        else if ((lowercaseCommand.contains("add") && lowercaseCommand.contains("diet")) ||
                 lowercaseCommand.contains("track this") ||
                 lowercaseCommand.contains("save")) {
-            return new ProcessedCommand(CommandType.ADD_TO_DIET, null, command);
+            result = new ProcessedCommand(CommandType.ADD_TO_DIET, null, command);
         }
-
         // Show history
-        if (lowercaseCommand.contains("history") ||
+        else if (lowercaseCommand.contains("history") ||
                 lowercaseCommand.contains("show") && lowercaseCommand.contains("scanned")) {
-            return new ProcessedCommand(CommandType.SHOW_HISTORY, null, command);
+            result = new ProcessedCommand(CommandType.SHOW_HISTORY, null, command);
         }
-
         // Ask about nutrition (catch-all for questions)
-        if (lowercaseCommand.contains("what") ||
+        else if (lowercaseCommand.contains("what") ||
                 lowercaseCommand.contains("how") ||
                 lowercaseCommand.contains("is this") ||
                 lowercaseCommand.contains("tell me")) {
-            return new ProcessedCommand(CommandType.ASK_NUTRITION, command, command);
+            result = new ProcessedCommand(CommandType.ASK_NUTRITION, command, command);
+        }
+        else {
+            result = new ProcessedCommand(CommandType.UNKNOWN, null, command);
         }
 
-        return new ProcessedCommand(CommandType.UNKNOWN, null, command);
+        long latency = System.currentTimeMillis() - startTime;
+        boolean matched = result.type != CommandType.UNKNOWN;
+        TestLog voiceLog = TestLogManager.getInstance().createVoiceLog(
+                command,
+                command,
+                result.type.name(),
+                result.type.name(),
+                matched,
+                latency
+        );
+        TestLogManager.getInstance().log(voiceLog);
+
+        return result;
     }
 }

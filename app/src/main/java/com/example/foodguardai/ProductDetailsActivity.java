@@ -23,6 +23,8 @@ import com.example.foodguardai.models.ScanHistory;
 import com.example.foodguardai.utils.BannedProductChecker;
 import com.example.foodguardai.utils.NutritionalAnalyzer;
 import com.example.foodguardai.utils.SafetyRatingCalculator;
+import com.example.foodguardai.logging.TestLog;
+import com.example.foodguardai.logging.TestLogManager;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
@@ -50,6 +52,7 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private Product currentProduct;
     private FirebaseManager firebaseManager;
+    private long productFetchStartTime = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -117,23 +120,45 @@ public class ProductDetailsActivity extends AppCompatActivity {
 
     private void fetchProductByBarcode(String barcode) {
         progressBar.setVisibility(View.VISIBLE);
+        productFetchStartTime = System.currentTimeMillis();
         RetrofitClient.getProductApi().getProductByBarcode(barcode)
                 .enqueue(new Callback<ProductResponse>() {
                     @Override
                     public void onResponse(Call<ProductResponse> call, Response<ProductResponse> response) {
                         progressBar.setVisibility(View.GONE);
+                        long latency = System.currentTimeMillis() - productFetchStartTime;
                         if (response.isSuccessful() && response.body() != null && response.body().getStatus() == 1) {
                             Product p = mapApiToProduct(barcode, response.body());
+
+                            TestLog barcodeLog = TestLogManager.getInstance().createBarcodeLog(
+                                    barcode, true, true, latency,
+                                    p.getProductName() != null ? p.getProductName() : "found");
+                            barcodeLog.setProductName(p.getProductName());
+                            TestLogManager.getInstance().log(barcodeLog);
+
                             displayProduct(p);
                             saveScanHistory(p);
                         } else {
+
+                            TestLog barcodeLog = TestLogManager.getInstance().createBarcodeLog(
+                                    barcode, true, false, latency,
+                                    "product_not_found_off");
+                            TestLogManager.getInstance().log(barcodeLog);
+
                             showNotFound(barcode);
                         }
                     }
                     @Override
                     public void onFailure(Call<ProductResponse> call, Throwable t) {
                         progressBar.setVisibility(View.GONE);
+                        long latency = System.currentTimeMillis() - productFetchStartTime;
                         Log.e(TAG, "API failure", t);
+
+                        TestLog barcodeLog = TestLogManager.getInstance().createBarcodeLog(
+                                barcode, true, false, latency,
+                                "api_failure: " + t.getMessage());
+                        TestLogManager.getInstance().log(barcodeLog);
+
                         showNotFound(barcode);
                     }
                 });

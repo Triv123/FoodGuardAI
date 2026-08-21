@@ -8,6 +8,10 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
+
+import com.example.foodguardai.logging.TestLog;
+import com.example.foodguardai.logging.TestLogManager;
+
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -18,6 +22,7 @@ public class VoiceManager {
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
     private boolean isTtsReady = false;
+    private long voiceListeningStartTime = 0;
 
     public interface VoiceCommandListener {
         void onCommandReceived(String command);
@@ -125,7 +130,14 @@ public class VoiceManager {
             @Override
             public void onError(int error) {
                 String errorMessage = getErrorMessage(error);
+                long latency = System.currentTimeMillis() - voiceListeningStartTime;
                 Log.e(TAG, "Speech error: " + errorMessage);
+
+                TestLog voiceErrLog = TestLogManager.getInstance().createVoiceLog(
+                        null, null, null, null, false, latency);
+                voiceErrLog.setRawOutput(errorMessage);
+                TestLogManager.getInstance().log(voiceErrLog);
+
                 listener.onError(errorMessage);
             }
 
@@ -136,7 +148,13 @@ public class VoiceManager {
 
                 if (matches != null && !matches.isEmpty()) {
                     String command = matches.get(0);
+                    long latency = System.currentTimeMillis() - voiceListeningStartTime;
                     Log.d(TAG, "Command recognized: " + command);
+
+                    TestLog voiceRecLog = TestLogManager.getInstance().createVoiceLog(
+                            null, command, null, null, true, latency);
+                    TestLogManager.getInstance().log(voiceRecLog);
+
                     listener.onCommandReceived(command);
                 }
             }
@@ -153,6 +171,7 @@ public class VoiceManager {
         });
 
         speechRecognizer.startListening(intent);
+        voiceListeningStartTime = System.currentTimeMillis();
     }
 
     public void stopListening() {

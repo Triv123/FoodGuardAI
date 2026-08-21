@@ -16,6 +16,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.foodguardai.adapters.ChatAdapter;
 import com.example.foodguardai.api.ApiManager;
+import com.example.foodguardai.logging.TestLog;
+import com.example.foodguardai.logging.TestLogManager;
 import com.example.foodguardai.models.ChatMessage;
 import com.example.foodguardai.utils.VoiceManager;
 import com.google.android.material.button.MaterialButton;
@@ -181,11 +183,13 @@ public class AIChatActivity extends AppCompatActivity {
 
         // Prepare product context
         String productContext = "Product: " + productName + ", Safety Rating: " + safetyRating + "/10";
+        long aiRequestStart = System.currentTimeMillis();
 
         // Send to API
         ApiManager.sendChatMessage(userMessage, productContext, new ApiManager.ApiCallback() {
             @Override
             public void onSuccess(String response) {
+                long latency = System.currentTimeMillis() - aiRequestStart;
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     btnSend.setEnabled(true);
@@ -195,15 +199,30 @@ public class AIChatActivity extends AppCompatActivity {
                     chatAdapter.notifyItemInserted(messages.size() - 1);
                     scrollToBottom();
                 });
+
+                TestLog aiChatLog = TestLogManager.getInstance().createAiLog(
+                        "success", latency, "product_chat",
+                        productContext, null,
+                        String.valueOf(messages.size()),
+                        response, "openrouter");
+                TestLogManager.getInstance().log(aiChatLog);
             }
 
             @Override
             public void onError(String error) {
+                long latency = System.currentTimeMillis() - aiRequestStart;
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     btnSend.setEnabled(true);
                     showErrorMessage(error);
                 });
+
+                TestLog aiChatLog = TestLogManager.getInstance().createAiLog(
+                        "error", latency, "product_chat",
+                        productContext, null,
+                        String.valueOf(messages.size()),
+                        error, "openrouter");
+                TestLogManager.getInstance().log(aiChatLog);
             }
         });
     }

@@ -23,6 +23,8 @@ import androidx.core.content.FileProvider;
 
 import com.example.foodguardai.models.NutritionalInfo;
 import com.example.foodguardai.models.Product;
+import com.example.foodguardai.logging.TestLog;
+import com.example.foodguardai.logging.TestLogManager;
 import com.example.foodguardai.utils.BannedProductChecker;
 import com.example.foodguardai.utils.NutritionExtractor;
 import com.example.foodguardai.utils.SafetyRatingCalculator;
@@ -51,6 +53,7 @@ public class ImageIngredient extends AppCompatActivity {
     private Uri capturedImageUri;
     private Bitmap currentBitmap;
     private TextRecognitionHelper textRecognizer;
+    private long ocrStartTime = 0;
 
     private ActivityResultLauncher<Uri> cameraLauncher;
     private ActivityResultLauncher<String> galleryLauncher;
@@ -170,6 +173,7 @@ public class ImageIngredient extends AppCompatActivity {
         btnAnalyze.setEnabled(false);
         btnViewDetails.setVisibility(View.GONE);
         tvStatus.setText("🔍 Reading label text...");
+        ocrStartTime = System.currentTimeMillis();
 
         textRecognizer.recognizeText(
                 InputImage.fromBitmap(bitmap, 0),
@@ -181,6 +185,9 @@ public class ImageIngredient extends AppCompatActivity {
 
                     @Override
                     public void onFailure(String error) {
+                        long latency = System.currentTimeMillis() - ocrStartTime;
+                        TestLog ocrLog = TestLogManager.getInstance().createOcrLog(false, latency, error);
+                        TestLogManager.getInstance().log(ocrLog);
                         runOnUiThread(() -> {
                             progressBar.setVisibility(View.GONE);
                             btnAnalyze.setEnabled(true);
@@ -192,6 +199,7 @@ public class ImageIngredient extends AppCompatActivity {
 
     private void processText(String fullText) {
         tvStatus.setText("⚙️ Analyzing ingredients...");
+        long ocrLatency = System.currentTimeMillis() - ocrStartTime;
 
         // Extract ingredients section
         String ingredientsText = extractIngredientsSection(fullText);
@@ -224,6 +232,25 @@ public class ImageIngredient extends AppCompatActivity {
         } else {
             product.setNutritionalInfo(new NutritionalInfo());
         }
+
+        // Log OCR success with field extraction details
+        NutritionExtractor.ExtractedNutrition fieldLog = extracted;
+        com.example.foodguardai.models.NutritionalInfo ni = product.getNutritionalInfo();
+        TestLog ocrFieldLog = TestLogManager.getInstance().createOcrFieldLog(
+                ni.getProtein() > 0, ni.getProtein(),
+                ni.getCarbohydrates() > 0, ni.getCarbohydrates(),
+                ni.getFat() > 0, ni.getFat(),
+                ni.getSodium() > 0, ni.getSodium(),
+                ni.getSugar() > 0, ni.getSugar(),
+                ni.getSaturatedFat() > 0, ni.getSaturatedFat(),
+                ni.getFiber() > 0, ni.getFiber(),
+                ocrLatency
+        );
+        TestLogManager.getInstance().log(ocrFieldLog);
+
+        // Also log the top-level OCR success
+        TestLog ocrLog = TestLogManager.getInstance().createOcrLog(true, ocrLatency, fullText.substring(0, Math.min(fullText.length(), 500)));
+        TestLogManager.getInstance().log(ocrLog);
 
         // Set ban status
         product.setBanned(analysis.hasBannedIngredients);

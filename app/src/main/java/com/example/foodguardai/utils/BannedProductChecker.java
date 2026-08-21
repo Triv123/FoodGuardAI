@@ -316,7 +316,6 @@ public class BannedProductChecker {
                     result.safetyDeduction += 1;
                 } else if (flag.severity.equals("ALLERGEN")) {
                     result.hasAllergens = true;
-                    result.safetyDeduction += 1;
                 }
             } else {
                 result.safeIngredients.add(capitalizeFirst(ingredient));

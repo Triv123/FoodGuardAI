@@ -280,6 +280,10 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.example.foodguardai.models.DietEntry;
 import com.example.foodguardai.models.ScanHistory;
 import com.example.foodguardai.models.User;
+import com.example.foodguardai.models.SusResponse;
+import com.example.foodguardai.models.FeatureUsageLog;
+import com.example.foodguardai.models.ExpertRating;
+import com.example.foodguardai.models.AlgorithmScore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -559,5 +563,160 @@ public class FirebaseManager {
                     callback.onSuccess(scans);
                 })
                 .addOnFailureListener(e -> callback.onError(e.getMessage()));
+    }
+
+    // ===== SUS RESPONSES =====
+
+    public interface SusCallback {
+        void onSuccess();
+        void onError(String error);
+    }
+
+    public void saveSusResponse(SusResponse response, SusCallback callback) {
+        FirebaseUser user = getCurrentUser();
+        if (user == null) {
+            if (callback != null) callback.onError("User not authenticated");
+            return;
+        }
+
+        db.collection("susResponses")
+                .add(response.toMap())
+                .addOnSuccessListener(documentReference -> {
+                    Log.d(TAG, "SUS response saved: " + documentReference.getId());
+                    if (callback != null) callback.onSuccess();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to save SUS response: " + e.getMessage(), e);
+                    if (callback != null) callback.onError(e.getMessage());
+                });
+    }
+
+    public void getSusResponses(String participantId, SusEntriesCallback callback) {
+        db.collection("susResponses")
+                .whereEqualTo("participantId", participantId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    List<SusResponse> responses = new ArrayList<>();
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        SusResponse response = document.toObject(SusResponse.class);
+                        response.setId(document.getId());
+                        responses.add(response);
+                    }
+                    callback.onSuccess(responses);
+                })
+                .addOnFailureListener(e -> callback.onError(e.getMessage()));
+    }
+
+    public interface SusEntriesCallback {
+        void onSuccess(List<SusResponse> responses);
+        void onError(String error);
+    }
+
+    // ===== FEATURE USAGE LOGGING =====
+
+    public void saveFeatureUsage(FeatureUsageLog usage, DietCallback callback) {
+        FirebaseUser user = getCurrentUser();
+        if (user == null) {
+            if (callback != null) callback.onError("User not authenticated");
+            return;
+        }
+
+        db.collection("featureUsage")
+                .add(usage.toMap())
+                .addOnSuccessListener(documentReference -> {
+                    Log.d(TAG, "Feature usage saved: " + documentReference.getId());
+                    if (callback != null) callback.onSuccess();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to save feature usage: " + e.getMessage(), e);
+                    if (callback != null) callback.onError(e.getMessage());
+                });
+    }
+
+    // ===== EXPERT RATINGS =====
+
+    public void saveExpertRating(ExpertRating rating, DietCallback callback) {
+        db.collection("expertRatings")
+                .add(rating.toMap())
+                .addOnSuccessListener(documentReference -> {
+                    Log.d(TAG, "Expert rating saved: " + documentReference.getId());
+                    if (callback != null) callback.onSuccess();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to save expert rating: " + e.getMessage(), e);
+                    if (callback != null) callback.onError(e.getMessage());
+                });
+    }
+
+    public void getExpertRatings(String productId, ExpertRatingsCallback callback) {
+        db.collection("expertRatings")
+                .whereEqualTo("productId", productId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    List<ExpertRating> ratings = new ArrayList<>();
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        ExpertRating rating = document.toObject(ExpertRating.class);
+                        rating.setId(document.getId());
+                        ratings.add(rating);
+                    }
+                    callback.onSuccess(ratings);
+                })
+                .addOnFailureListener(e -> callback.onError(e.getMessage()));
+    }
+
+    public interface ExpertRatingsCallback {
+        void onSuccess(List<ExpertRating> ratings);
+        void onError(String error);
+    }
+
+    // ===== ALGORITHM SCORES =====
+
+    public void saveAlgorithmScore(AlgorithmScore score, DietCallback callback) {
+        db.collection("algorithmScores")
+                .add(score.toMap())
+                .addOnSuccessListener(documentReference -> {
+                    Log.d(TAG, "Algorithm score saved: " + documentReference.getId());
+                    if (callback != null) callback.onSuccess();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to save algorithm score: " + e.getMessage(), e);
+                    if (callback != null) callback.onError(e.getMessage());
+                });
+    }
+
+    public void getAlgorithmScores(String productId, AlgorithmScoresCallback callback) {
+        db.collection("algorithmScores")
+                .whereEqualTo("productId", productId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    List<AlgorithmScore> scores = new ArrayList<>();
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        AlgorithmScore score = document.toObject(AlgorithmScore.class);
+                        score.setId(document.getId());
+                        scores.add(score);
+                    }
+                    callback.onSuccess(scores);
+                })
+                .addOnFailureListener(e -> callback.onError(e.getMessage()));
+    }
+
+    public interface AlgorithmScoresCallback {
+        void onSuccess(List<AlgorithmScore> scores);
+        void onError(String error);
+    }
+
+    // ===== TEST LOGS =====
+
+    public void saveTestLog(com.example.foodguardai.logging.TestLog log, DietCallback callback) {
+        db.collection("testLogs")
+                .add(log.toMap())
+                .addOnSuccessListener(documentReference -> {
+                    Log.d(TAG, "Test log saved: " + documentReference.getId());
+                    if (callback != null) callback.onSuccess();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to save test log: " + e.getMessage(), e);
+                    if (callback != null) callback.onError(e.getMessage());
+                });
     }
 }

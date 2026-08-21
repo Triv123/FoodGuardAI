@@ -44,7 +44,7 @@ public class SafetyRatingCalculator {
         else if (nutrition.getSaturatedFat() > 3) rating -= 1;
 
         // Calories (per 100g)
-        if (nutrition.getCalories() > 500) rating -= 1;
+        if (nutrition.getCalories() > 550) rating -= 1;
 
         // ── Bonuses ──
         if (nutrition.getProtein() > 10) rating += 1;

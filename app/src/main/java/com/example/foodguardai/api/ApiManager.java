@@ -3,6 +3,8 @@ package com.example.foodguardai.api;
 import android.util.Log;
 
 import com.example.foodguardai.BuildConfig;
+import com.example.foodguardai.logging.TestLog;
+import com.example.foodguardai.logging.TestLogManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -75,6 +77,7 @@ public class ApiManager {
 
         String model = MODELS[index];
         Log.d(TAG, "Trying model [" + index + "]: " + model);
+        long requestStart = System.currentTimeMillis();
 
         try {
             // Build messages
@@ -126,12 +129,26 @@ public class ApiManager {
                             .getJSONObject("message")
                             .getString("content")
                             .trim();
+                    long latency = System.currentTimeMillis() - requestStart;
                     Log.d(TAG, "✅ SUCCESS with: " + model);
+
+                    TestLog aiLog = TestLogManager.getInstance().createAiLog(
+                            "success", latency, "product_chat",
+                            productContext, null, null, reply, model);
+                    TestLogManager.getInstance().log(aiLog);
+
                     callback.onSuccess(reply);
 
                 } else if (code == 401) {
                     // Wrong key — stop immediately, no point trying other models
+                    long latency = System.currentTimeMillis() - requestStart;
                     Log.e(TAG, "❌ 401 Unauthorized — key is wrong");
+
+                    TestLog aiLog = TestLogManager.getInstance().createAiLog(
+                            "error_401", latency, "product_chat",
+                            productContext, null, null, bodyStr, model);
+                    TestLogManager.getInstance().log(aiLog);
+
                     callback.onError(
                             "API key is invalid (401).\n\n" +
                                     "Fix:\n" +
@@ -143,22 +160,50 @@ public class ApiManager {
 
                 } else if (code == 429) {
                     // Rate limited — try next model
+                    long latency = System.currentTimeMillis() - requestStart;
                     Log.w(TAG, "⚠️ 429 rate limit on " + model + " — trying next");
+
+                    TestLog aiLog = TestLogManager.getInstance().createAiLog(
+                            "error_429", latency, "product_chat",
+                            productContext, null, null, bodyStr, model);
+                    TestLogManager.getInstance().log(aiLog);
+
                     tryModels(message, productContext, callback, index + 1);
 
                 } else if (code == 404) {
                     // Model not available — try next
+                    long latency = System.currentTimeMillis() - requestStart;
                     Log.w(TAG, "⚠️ 404 model not found: " + model + " — trying next");
+
+                    TestLog aiLog = TestLogManager.getInstance().createAiLog(
+                            "error_404", latency, "product_chat",
+                            productContext, null, null, bodyStr, model);
+                    TestLogManager.getInstance().log(aiLog);
+
                     tryModels(message, productContext, callback, index + 1);
 
                 } else {
+                    long latency = System.currentTimeMillis() - requestStart;
                     Log.w(TAG, "⚠️ HTTP " + code + " on " + model + " — trying next");
+
+                    TestLog aiLog = TestLogManager.getInstance().createAiLog(
+                            "error_" + code, latency, "product_chat",
+                            productContext, null, null, bodyStr, model);
+                    TestLogManager.getInstance().log(aiLog);
+
                     tryModels(message, productContext, callback, index + 1);
                 }
             }
 
         } catch (Exception e) {
+            long latency = System.currentTimeMillis() - requestStart;
             Log.e(TAG, "Exception on " + model + ": " + e.getMessage(), e);
+
+            TestLog aiLog = TestLogManager.getInstance().createAiLog(
+                    "exception", latency, "product_chat",
+                    productContext, null, null, e.getMessage(), model);
+            TestLogManager.getInstance().log(aiLog);
+
             tryModels(message, productContext, callback, index + 1);
         }
     }
