@@ -30,6 +30,15 @@ out/
 # ── Firebase (contains environment-specific config) ─────
 google-services.json
 
+# ── Test data / scripts ──────────────────────────────────
+/barcodes/
+*.csv
+batch_scanner.py
+build_500.py
+clean_csv.py
+fetch_and_generate.py
+add_extra.py
+
 # ── Misc ─────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
